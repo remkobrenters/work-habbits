@@ -1,0 +1,4 @@
+-r requirements.txt
+-r requirements-bluetooth.txt
+ruff==0.15.20
+pip-audit==2.10.1

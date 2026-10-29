@@ -1,0 +1,79 @@
+.wh-panel {
+  spacing: 9px;
+}
+
+.wh-popup {
+  padding: 8px 10px 10px;
+  spacing: 14px;
+}
+
+.wh-section {
+  spacing: 8px;
+}
+
+.wh-heading {
+  font-weight: bold;
+  font-size: 1.05em;
+}
+
+.wh-num {
+  font-feature-settings: "tnum";
+}
+
+.wh-small {
+  font-size: 0.9em;
+}
+
+.wh-cards {
+  spacing: 10px;
+}
+
+.wh-card {
+  background-color: rgba(128, 128, 128, 0.12);
+  border-radius: 12px;
+  padding: 12px 14px;
+  spacing: 9px;
+}
+
+.wh-desk-button {
+  padding: 4px 12px;
+}
+
+.wh-settings {
+  padding: 6px;
+}
+
+.wh-figure {
+  spacing: 6px;
+}
+
+.wh-big {
+  font-size: 2.3em;
+  font-weight: 300;
+  font-feature-settings: "tnum";
+}
+
+.wh-meter {
+  height: 12px;
+  min-width: 6em;
+}
+
+.wh-score {
+  height: 18px;
+}
+
+.wh-cell {
+  spacing: 6px;
+}
+
+.wh-rule {
+  height: 1px;
+  background-color: rgba(128, 128, 128, 0.3);
+}
+
+.wh-countdown {
+  font-weight: bold;
+  font-feature-settings: "tnum";
+  border-radius: 11px;
+  padding: 1px 6px;
+}

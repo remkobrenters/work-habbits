@@ -1,0 +1,14 @@
+{
+  "uuid": "work-habbits@local",
+  "name": "work-habbits",
+  "description": "Desk posture, movement breaks and local keyboard/mouse counts. GNOME 46\u201350; input counts require Xorg. Bluetooth, manual and fixed desks.",
+  "shell-version": [
+    "46",
+    "47",
+    "48",
+    "49",
+    "50"
+  ],
+  "settings-schema": "org.gnome.shell.extensions.work-habbits",
+  "version": 1
+}

@@ -1,0 +1,100 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<schemalist>
+  <schema id="org.gnome.shell.extensions.work-habbits" path="/org/gnome/shell/extensions/work-habbits/">
+    <key name="seated-due" type="u">
+      <range min="1" max="600" />
+      <default>120</default>
+      <summary>Minutes seated before the stand reminder</summary>
+    </key>
+    <key name="seated-grace" type="u">
+      <range min="1" max="120" />
+      <default>5</default>
+      <summary>Further seated minutes before the stand reminder turns red</summary>
+    </key>
+    <key name="stand-required" type="u">
+      <range min="1" max="240" />
+      <default>20</default>
+      <summary>Minutes standing that count as a stand</summary>
+    </key>
+    <key name="stand-grace" type="u">
+      <range min="1" max="120" />
+      <default>5</default>
+      <summary>Minutes after the stand to sit down again before red</summary>
+    </key>
+    <key name="input-due" type="u">
+      <range min="1" max="240" />
+      <default>25</default>
+      <summary>Minutes of typing before the hand break reminder</summary>
+    </key>
+    <key name="input-grace" type="u">
+      <range min="1" max="60" />
+      <default>1</default>
+      <summary>Further typing minutes before the hand break reminder turns red</summary>
+    </key>
+    <key name="input-break" type="u">
+      <range min="1" max="30" />
+      <default>2</default>
+      <summary>Minutes without keyboard or mouse input that count as a hand break</summary>
+    </key>
+    <key name="desk-sit" type="u">
+      <range min="65" max="130" />
+      <default>80</default>
+      <summary>Height in cm the desk button lowers a standing desk to</summary>
+    </key>
+    <key name="desk-stand" type="u">
+      <range min="65" max="130" />
+      <default>112</default>
+      <summary>Height in cm the desk button raises a seated desk to</summary>
+    </key>
+    <key name="tracking-enabled" type="b">
+      <default>true</default>
+      <summary>Enable activity tracking</summary>
+    </key>
+    <key name="notifications-enabled" type="b">
+      <default>true</default>
+      <summary>Show desktop break reminders</summary>
+    </key>
+    <key name="desk-mode" type="s">
+      <default>'manual'</default>
+      <summary>Desk movement mode</summary>
+      <choices>
+        <choice value="disabled" />
+        <choice value="manual" />
+        <choice value="bluetooth" />
+      </choices>
+    </key>
+    <key name="desk-device" type="s">
+      <default>''</default>
+      <summary>Bluetooth device address (required for Bluetooth mode)</summary>
+    </key>
+    <key name="manual-position" type="s">
+      <default>'sitting'</default>
+      <summary>Last explicitly selected posture or movement break</summary>
+      <choices>
+        <choice value="sitting" />
+        <choice value="standing" />
+        <choice value="away" />
+      </choices>
+    </key>
+    <key name="seated-repeat" type="u">
+      <range min="1" max="240" />
+      <default>30</default>
+      <summary>Further seated minutes in red per missed reminder</summary>
+    </key>
+    <key name="stand-repeat" type="u">
+      <range min="1" max="240" />
+      <default>15</default>
+      <summary>Further standing minutes in red per missed reminder</summary>
+    </key>
+    <key name="input-repeat" type="u">
+      <range min="1" max="240" />
+      <default>15</default>
+      <summary>Further input minutes in red per missed reminder</summary>
+    </key>
+    <key name="score-days" type="u">
+      <range min="1" max="365" />
+      <default>14</default>
+      <summary>Active days included in the habit score</summary>
+    </key>
+  </schema>
+</schemalist>

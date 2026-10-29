@@ -1,0 +1,36 @@
+# Machine configuration and environment-owned directories are not project files.
+/.*
+!/.github/
+!/.gitignore
+!/.editorconfig
+!/.gitattributes
+
+# Local environments, caches, generated schemas and reports.
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.ruff_cache/
+.pytest_cache/
+.coverage*
+htmlcov/
+gschemas.compiled
+node_modules/
+*.log
+*.sock
+
+# Generated distribution files and private local data.
+/dist/
+/build/
+/local/
+/state/
+/days/
+.env
+.env.*
+*.pem
+*.key
+*.p12
+*.sqlite*
+*.db
+*.bak
+*.backup

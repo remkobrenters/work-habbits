@@ -1,0 +1,16 @@
+[Unit]
+Description=work-habbits optional Bluetooth desk helper
+PartOf=graphical-session.target
+After=graphical-session.target bluetooth.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 "%h/.local/share/work-habbits/desk_service.py"
+Restart=on-failure
+RestartSec=15
+TimeoutStopSec=8
+UMask=0077
+NoNewPrivileges=true
+
+[Install]
+WantedBy=graphical-session.target
