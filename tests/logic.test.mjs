@@ -188,3 +188,60 @@ test('countdown urgency blinks near deadlines, becomes red after 30 active secon
     model.standingRun = SETTINGS.standRequired;
     assert.equal(model.reminderUrgency({desk: true}).desk, 'near');
 });
+
+test('snoozes hold red misses, persist and charge once after active grace', async () => {
+    const {dailyRecord, modelState} = await import('../extension/history.js');
+    const cfg = {...SETTINGS, seatedSnooze: 2, seatedDue: 2, seatedLate: 4, seatedRepeat: 10};
+    const model = new WellnessModel();
+    tick(model, {dt: 2}, cfg);
+    assert.deepEqual(model.snooze(now, cfg), ['seated']);
+    assert.deepEqual(model.snooze(now, cfg), []);
+    tick(model, {dt: 2, wallMs: now + 2000}, cfg);
+    assert.equal(model.missed, 2);
+    assert.equal(model.snoozes.seated.state, 'broken');
+    assert.equal(model.snoozes.seated.charged, 2);
+    const stored = dailyRecord(model.serialize('2026-10-29'));
+    const restored = new WellnessModel(modelState(stored));
+    assert.deepEqual(restored.snoozes, model.snoozes);
+    tick(model, {wallMs: now + 3000}, cfg);
+    assert.equal(model.missed, 2, 'Already charged held misses cannot replay');
+});
+
+test('locking, leaving and prolonged inactivity forgive snoozes without penalty', () => {
+    for (const overrides of [{localActive: false}, {idleSeconds: SETTINGS.snoozeAway},
+        {localActive: false, deskReady: false}]) {
+        const model = new WellnessModel({seated: SETTINGS.seatedLate, missed: 1, lastInputWallMs: now});
+        model.lastPosition = 'sitting';
+        model.snooze(now);
+        assert.equal(model.missed, 0, 'Snooze holds the existing red miss');
+        tick(model, {wallMs: now + 3600000, ...overrides});
+        assert.equal(model.missed, 0);
+        assert.equal(model.snoozes.seated.state, 'forgiven');
+        assert.equal(model.snoozes.seated.grace, 0);
+    }
+});
+
+test('standing and hands snoozes use their configured duration and break clears them', () => {
+    const standing = new WellnessModel({standingRun: SETTINGS.standRequired, standComplete: true});
+    standing.lastPosition = 'standing';
+    assert.deepEqual(standing.snooze(now), ['stand']);
+    assert.equal(standing.snoozes.stand.until, now + SETTINGS.standSnooze * 1000);
+    tick(standing);
+    assert.equal(standing.snoozes.stand, undefined);
+    const hands = new WellnessModel({input: SETTINGS.inputDue, lastInputWallMs: now});
+    assert.deepEqual(hands.snooze(now), ['input']);
+    assert.equal(hands.snoozes.input.until, now + SETTINGS.inputSnooze * 1000);
+    tick(hands, {idleSeconds: SETTINGS.inputResetIdle});
+    assert.equal(hands.snoozes.input, undefined);
+    assert.equal(hands.missed, 0);
+});
+
+test('snoozed countdown shows time left and suppresses blinking', () => {
+    const model = new WellnessModel({seated: SETTINGS.seatedLate, missed: 1, lastInputWallMs: now});
+    model.lastPosition = 'sitting';
+    model.snooze(now);
+    model.wallMs = now;
+    assert.equal(model.countdown({desk: true, input: false}).seconds, SETTINGS.seatedSnooze);
+    assert.equal(model.reminderUrgency({desk: true, input: false}).desk, null);
+    assert.equal(model.deskColor(true), 'orange');
+});

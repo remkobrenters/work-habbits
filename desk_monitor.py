@@ -19,6 +19,7 @@ import time
 from pathlib import Path
 
 from bleak import BleakClient, BleakScanner
+from bleak.backends.device import BLEDevice
 from dbus_fast import BusType, Message, MessageType
 from dbus_fast.aio import MessageBus
 
@@ -48,18 +49,21 @@ def runtime_path() -> Path:
     return target / 'desk.json'
 
 
-def connected_desk_paths(objects: dict, address: str) -> list[str]:
-    paths = []
+def known_desk_device(objects: dict, address: str) -> BLEDevice | None:
+    matches = []
     for path, interfaces in objects.items():
         device = interfaces.get('org.bluez.Device1', {})
-        connected, found = device.get('Connected'), device.get('Address')
-        if connected and connected.value and found and found.value.upper() == address.upper():
-            paths.append(path)
-    return paths
+        props = {key: value.value for key, value in device.items()}
+        if props.get('Address', '').upper() == address.upper():
+            matches.append((not props.get('Connected', False), path, props))
+    if not matches:
+        return None
+    _, path, props = min(matches, key=lambda match: match[:2])
+    return BLEDevice(props['Address'], props.get('Name'), {'path': path, 'props': props})
 
 
-async def desk_is_connected(address: str) -> bool:
-    """Observe BlueZ without releasing connections owned by another application."""
+async def find_known_desk(address: str) -> BLEDevice | None:
+    """Resolve the configured desk, including connected devices that no longer advertise."""
     bus = await MessageBus(bus_type=BusType.SYSTEM).connect()
     try:
         reply = await bus.call(
@@ -72,7 +76,7 @@ async def desk_is_connected(address: str) -> bool:
         )
         if reply.message_type == MessageType.ERROR:
             raise RuntimeError(f'BlueZ unavailable: {reply.error_name}')
-        return bool(connected_desk_paths(reply.body[0], address))
+        return known_desk_device(reply.body[0], address)
     finally:
         bus.disconnect()
 
@@ -111,6 +115,7 @@ def report_desk(path: Path, desk: dict) -> None:
         device=desk['device'],
         height=desk['height'],
         moving_to=desk['target'],
+        error='Waiting for desk height' if desk['client'] is not None and desk['height'] is None else '',
     )
 
 
@@ -223,21 +228,21 @@ async def monitor(address: str, path: Path) -> None:
             while True:
                 write_status(path, connected=False, device=address, error='Searching for configured desk')
                 try:
-                    if await desk_is_connected(address):
-                        write_status(
-                            path,
-                            connected=False,
-                            device=address,
-                            error='Desk already connected; leaving the other application alone',
-                        )
-                        await asyncio.sleep(RETRY_SECONDS)
-                        continue
-                    device = await BleakScanner.find_device_by_address(address, timeout=12)
-                    if device and not await desk_is_connected(address):
+                    device = await find_known_desk(address)
+                    if device is None:
+                        device = await BleakScanner.find_device_by_address(address, timeout=12)
+                    if device is None:
+                        write_status(path, connected=False, device=address, error='Configured desk not found')
+                    else:
                         await connect_and_watch(device, path, desk)
+                        write_status(
+                            path, connected=False, device=address, error='Desk disconnected; retrying'
+                        )
                 except Exception as error:
                     logging.warning('Bluetooth unavailable: %s', error)
-                write_status(path, connected=False, device=address, error='Disconnected / desk unavailable')
+                    write_status(
+                        path, connected=False, device=address, error=f'Bluetooth unavailable: {error}'
+                    )
                 await asyncio.sleep(RETRY_SECONDS)
     finally:
         socket_path.unlink(missing_ok=True)

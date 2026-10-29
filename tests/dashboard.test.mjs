@@ -81,7 +81,7 @@ await extension.evaluate();
 test('dashboard keeps colored charts, posture percentages and score while coexisting with unrelated extensions', () => {
     const app = new extension.namespace.default();
     const menu = {box: new Actor(), isOpen: true, items: [], addMenuItem(item) { this.items.push(item); }};
-    app._settings = {get_boolean: () => false};
+    app._settings = {get_boolean: () => false, get_string: () => 'manual'};
     app._indicator = {menu};
     app._deskIcon = new Actor();
     app._inputIcon = new Actor();
@@ -98,7 +98,11 @@ test('dashboard keeps colored charts, posture percentages and score while coexis
     app._model = new WellnessModel({seated: SETTINGS.seatedDue, input: SETTINGS.inputDue,
         todaySitting: 3600, todayStanding: 1200, keys: 100, clicks: 20, heeded: 3, missed: 1, lastInputWallMs: 1000});
     app._model.update({dt: 0, wallMs: 1000, idleSeconds: 0, position: 'sitting', deskReady: true});
+    app._postureIcons = {sitting: 'sitting-icon', standing: 'standing-icon'};
     app._paint(true, 0, 'manual', true);
+    assert.equal(app._deskIcon.gicon, 'sitting-icon');
+    assert.equal(app._historyItem.visible, false);
+    assert.ok(app._metricRows.awaySeconds.every(actor => !actor.visible));
     const orange = '#f1ac43';
     assert.equal(app._postureCard.meter._level.color, orange);
     assert.equal(app._handsCard.meter._level.color, orange);
@@ -113,6 +117,33 @@ test('dashboard keeps colored charts, posture percentages and score while coexis
     assert.equal(app._scoreBar._score, 0.75);
     assert.ok(app._scoreBar.drawnColors.flat().every(Number.isFinite), 'Theme colors draw on both color APIs');
     assert.equal(app._deskButton.label, 'I am standing');
+    app._desk = {height_cm: 112};
+    app._position = 'standing';
+    app._paint(true, 0, 'bluetooth', true);
+    assert.equal(app._deskIcon.gicon, 'standing-icon');
+    assert.match(app._indicator.accessible_name, /standing/);
+    app._deskReady = false;
+    app._paint(true, 0, 'bluetooth', true);
+    assert.equal(app._deskIcon.icon_name, 'preferences-desktop-accessibility-symbolic');
+    app._deskReady = true;
+    app._position = 'sitting';
+    app._store.error = 'disk full';
+    app._paint(true, 0, 'manual', true);
+    assert.equal(app._historyItem.visible, true);
+    assert.match(app._historyItem.label.text, /save failed/);
+    app._store.error = '';
+    app._store.warnings = ['bad record'];
+    app._paint(true, 0, 'manual', true);
+    assert.match(app._historyItem.label.text, /Unreadable/);
+    app._store.warnings = [];
+    app._model.todayAway = 1200;
+    app._renderMetrics();
+    assert.equal(app._metricCells.standingSeconds.today.percentage.text, '25%');
+    app._settings.get_string = () => 'disabled';
+    app._renderMetrics();
+    assert.ok(app._metricRows.awaySeconds.every(actor => actor.visible));
+    assert.equal(app._metricCells.standingSeconds.today.percentage.text, '20%');
+    assert.equal(app._model.todayAway, 1200, 'Hidden history remains intact');
     app._model.seated = SETTINGS.seatedLate;
     app._model.input = SETTINGS.inputLate;
     app._paint(true, 0, 'manual', true);
@@ -121,7 +152,7 @@ test('dashboard keeps colored charts, posture percentages and score while coexis
     assert.equal(app._postureCard.meter._level.color, '#9ca3af');
     assert.equal(app._handsCard.meter._level.color, '#9ca3af');
     assert.equal(app._deskButton.visible, false);
-    assert.equal(app._pause.state, false);
+    assert.equal(app._pause, undefined, 'Tracking is configured in Settings');
 });
 
 test('Wayland never launches the X11 input helper', () => {

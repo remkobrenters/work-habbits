@@ -10,7 +10,7 @@ export default class WorkHabbitsPreferences extends ExtensionPreferences {
         const page = new Adw.PreferencesPage({title: 'work-habbits', icon_name: 'preferences-system-symbolic'});
         window.add(page);
         const general = new Adw.PreferencesGroup({title: 'Tracking',
-            description: 'Posture reminders on Xorg or Wayland. Keyboard/mouse counts require Xorg. All history stays local.'});
+            description: 'Posture reminders on Xorg or Wayland. Keyboard/mouse counts require Xorg. Turning tracking off pauses input collection, posture timers, reminders and the Bluetooth helper. History is kept.'});
         page.add(general);
         for (const [key, title] of [['tracking-enabled', 'Enable tracking'], ['notifications-enabled', 'Show reminder notifications']]) {
             const row = new Adw.SwitchRow({title});
@@ -44,6 +44,10 @@ export default class WorkHabbitsPreferences extends ExtensionPreferences {
             [new Adw.PreferencesGroup({title: 'Hand reminders (minutes)'}), [
                 ['input-due', 'Hand break after active input'], ['input-grace', 'Further input time before red'],
                 ['input-break', 'Continuous rest to reset the timer']]],
+            [new Adw.PreferencesGroup({title: 'Snooze — leaving soon'}), [
+                ['seated-snooze', 'Snooze standing reminders (minutes)'], ['stand-snooze', 'Snooze sitting reminders (minutes)'],
+                ['input-snooze', 'Snooze hand reminders (minutes)'], ['snooze-away', 'Idle minutes to forgive snoozes'],
+                ['snooze-penalty', 'Continued work penalty multiplier']]],
             [new Adw.PreferencesGroup({title: 'Habit score'}), [
                 ['score-days', 'Active days in the score'], ['seated-repeat', 'Further seated minutes per miss'],
                 ['stand-repeat', 'Further standing minutes per miss'], ['input-repeat', 'Further input minutes per miss']]],
@@ -74,5 +78,13 @@ export default class WorkHabbitsPreferences extends ExtensionPreferences {
         });
         reset.add(button);
         page.add(reset);
+        const project = new Adw.PreferencesGroup();
+        project.add(new Gtk.Label({
+            label: '<a href="https://github.com/remkobrenters/work-habbits">View repository</a>',
+            use_markup: true,
+            xalign: 0,
+            halign: Gtk.Align.START,
+        }));
+        page.add(project);
     }
 }

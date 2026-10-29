@@ -1,8 +1,12 @@
 # work-habbits
 
+**v1.1.0** · [Release notes](docs/releases/v1.1.0.md)
+
 A small GNOME extension for desk posture, movement breaks, and keyboard/mouse activity. The panel keeps colored posture and hands cards, progress bars, a habit score graph, and daily/weekly/monthly totals. Activity stays on your computer; there are no accounts, telemetry, HTTP clients, or remote control endpoints.
 
 ## Screenshots
+
+The dashboard images below show v1.0.0. Version 1.1.0 has a narrower menu, posture icons, snooze controls, and Tracking in Settings.
 
 ### Dashboard
 
@@ -74,7 +78,7 @@ Installation paths:
 - Service: `${XDG_CONFIG_HOME:-~/.config}/systemd/user/work-habbits-desk.service`
 - Preferences: GSettings schema `org.gnome.shell.extensions.work-habbits`
 
-Install/uninstall manage only work-habbits. Other applications, extensions, services, settings, and history stay untouched. Only one application should control a physical Bluetooth desk at a time. work-habbits waits for an existing connection to be released; it does not disconnect another application's link.
+Install/uninstall manage only work-habbits. Other applications, extensions, services, settings, and history stay untouched. Only one application should control a physical Bluetooth desk at a time. work-habbits can use an existing connection to the configured desk, including one made through GNOME Bluetooth or `bluetoothctl`. It does not force a disconnect before attaching. While tracking, its Bluetooth client manages that connection and releases it when stopped.
 
 ## Reminders and counts
 
@@ -91,6 +95,8 @@ Sitting/standing activity totals accumulate while the local desktop is active an
 The hand timer runs while input happened within the last 10 seconds. Typing, clicks, and scrolling indicate activity; wheel steps are not clicks. Pointer movement is sampled at most five times per second and does not restart hand activity. Media keys and Super+L do not end a hand break. Key auto-repeat counts as presses.
 
 Locking, switching users/TTYs, and remote sessions stop input collection. A Bluetooth disconnect pauses sensor-based posture timers. Suspend and process downtime never count as inferred activity. Daily totals and reminder progress persist across extension restarts and start anew each local calendar day.
+
+Tracking can be paused in Settings; this pauses collection, reminders and the Bluetooth helper while keeping history. The menu shows a **Snooze — leaving soon** button when a reminder is due. Like Workspace Monitor, it snoozes standing/sitting reminders for 15 minutes and hand reminders for 10 minutes (configurable). Misses are held during the snooze. Continued active work after its grace charges held misses twice by default; taking the break clears them. Locking or leaving the local session forgives held misses immediately; prolonged idle time also forgives them. Locked and idle time never advances penalty grace. Snoozes survive Shell restarts.
 
 The red-to-green habit score shows timely breaks divided by all scored reminders over the last 14 active days (configurable). Completing a posture break before red, returning to sitting within the grace, and resting hands after orange but before red earn points. Reaching red adds a miss; more active time in red adds misses at the configured intervals. Ordinary hand rests before a reminder earn no points. Inactive time adds no misses.
 
@@ -128,6 +134,8 @@ One aggregate JSON file per local calendar day lives in:
 ${XDG_STATE_HOME:-~/.local/state}/work-habbits/days/YYYY-MM-DD.json
 ```
 
+The panel icon shows sitting or standing based on desk height in Bluetooth mode, or your selection in manual mode. Movement breaks are walks explicitly marked in fixed-desk mode; their row is shown only in that mode. Hidden movement-break history is retained. History messages appear in the menu only when saving or reading fails.
+
 Records contain sitting/standing/away seconds, key/click/movement counts, reminder progress/outcomes, and the last hand-input timestamp needed to restore breaks. Weeks start Monday; months follow the local calendar. There is no raw event log, server, or database.
 
 Files have owner-only permissions and are replaced atomically every 30 seconds, on day rollover, and when the extension is disabled. Abrupt shutdown may lose the unsaved interval. Failed saves are retried; unreadable records are reported and preserved. Records remain until you delete them. Back up the directory yourself. Startup cost grows with retained daily records.
@@ -154,6 +162,21 @@ gsettings --schemadir ~/.local/share/work-habbits/schemas \
 ```
 
 Delete the work-habbits history directory separately if you want to discard it.
+
+## One-time import from Workspace Monitor
+
+Keep Work Habbits disabled during the import so its in-memory history cannot overwrite imported records. Preview first, then apply:
+
+```bash
+python3 scripts/import_workspace_monitor.py
+python3 scripts/import_workspace_monitor.py --apply
+```
+
+The importer uses the applications' directories under `${XDG_STATE_HOME:-~/.local/state}`; `--source` and `--target` override them. It imports daily posture and input counts, heeded reminders, and already-scored penalties, and translates reminder progress. It never changes Workspace Monitor's files. Today's source record is the last saved snapshot; stop Workspace Monitor first for a final save when switching tools.
+
+Existing dates stop the import by default. After checking for overlapping tracking, `--overlap max` keeps the larger value of each metric for those dates. This avoids counting overlapping activity twice; disjoint activity on the same day needs manual reconciliation. Workspace Monitor supplies reminder progress so a brief overlap with a fresh Work Habbits installation does not reset established timers.
+
+Owner-only backups of both applications' original records, the import plan, and a manifest are kept in `work-habbits/imports/workspace-monitor/`. These preserve fields not mapped by the importer, including working time and original snooze snapshots. A journal prevents a second import from overwriting subsequent activity; an interrupted import also stops for manual recovery using these backups. Enable Work Habbits after a successful import.
 
 ## Development and publication
 

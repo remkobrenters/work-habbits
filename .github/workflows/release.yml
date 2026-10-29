@@ -1,0 +1,63 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Validate and publish
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Validate release metadata and notes
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          import re
+          from pathlib import Path
+          tag = os.environ['RELEASE_TAG']
+          if not re.fullmatch(r'v[0-9]+\.[0-9]+\.[0-9]+', tag):
+              raise SystemExit('Expected a vMAJOR.MINOR.PATCH tag')
+          metadata = json.loads(Path('extension/metadata.json').read_text())
+          if metadata.get('version-name') != tag[1:]:
+              raise SystemExit('Tag and extension version-name differ')
+          if not Path(f'docs/releases/{tag}.md').is_file():
+              raise SystemExit('Release notes are missing')
+          PY
+      - name: Install check dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y python3-venv python3-gi gir1.2-adw-1 gjs gnome-shell-common libglib2.0-bin nodejs shellcheck
+          /usr/bin/python3 -m venv .venv
+          .venv/bin/python -m pip install -r requirements-dev.txt
+          .venv/bin/python -m pip check
+      - name: Check, audit and package
+        run: |
+          make check
+          make audit
+          make dist
+      - name: Publish release and source archive
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          gh release create "$RELEASE_TAG" dist/work-habbits-source.zip \
+            --verify-tag --title "Work Habbits $RELEASE_TAG" \
+            --notes-file "docs/releases/$RELEASE_TAG.md"

@@ -6,25 +6,32 @@ from pathlib import Path
 from unittest import mock
 
 
-class ConnectionOwnershipTests(unittest.TestCase):
-    def test_finds_only_desks_this_computer_is_still_connected_to(self):
+class ConnectionResolutionTests(unittest.TestCase):
+    def test_resolves_only_configured_desk_preferring_connected_adapter(self):
         from dbus_fast import Variant
 
-        from desk_monitor import connected_desk_paths
+        from desk_monitor import known_desk_device
 
-        def device(connected, **names):
-            props = {key: Variant('s', value) for key, value in names.items()}
-            return {'org.bluez.Device1': {**props, 'Connected': Variant('b', connected)}}
+        def device(connected, address):
+            return {
+                'org.bluez.Device1': {
+                    'Connected': Variant('b', connected),
+                    'Address': Variant('s', address),
+                    'Name': Variant('s', 'Desk'),
+                }
+            }
 
         objects = {
-            '/desk': device(True, Address='AA:BB:CC:DD:EE:FF'),
-            '/other': device(True, Address='AA:BB:CC:DD:EE:00'),
-            '/offline': device(False, Address='AA:BB:CC:DD:EE:FF'),
-            '/adapter': {'org.bluez.Adapter1': {}},
+            '/offline': device(False, 'AA:BB:CC:DD:EE:FF'),
+            '/other': device(True, 'AA:BB:CC:DD:EE:00'),
+            '/desk': device(True, 'AA:BB:CC:DD:EE:FF'),
         }
-        self.assertEqual(connected_desk_paths(objects, 'aa:bb:cc:dd:ee:ff'), ['/desk'])
+        found = known_desk_device(objects, 'aa:bb:cc:dd:ee:ff')
+        self.assertEqual(found.details['path'], '/desk')
+        self.assertIs(found.details['props']['Connected'], True)
+        self.assertIsNone(known_desk_device(objects, '00:00:00:00:00:00'))
 
-    def test_checking_a_connection_only_reads_bluez_properties(self):
+    def test_lookup_only_reads_bluez_objects(self):
         from types import SimpleNamespace
 
         from dbus_fast import MessageType, Variant
@@ -39,8 +46,8 @@ class ConnectionOwnershipTests(unittest.TestCase):
                     {
                         '/desk': {
                             'org.bluez.Device1': {
-                                'Connected': Variant('b', True),
                                 'Address': Variant('s', 'AA:BB:CC:DD:EE:FF'),
+                                'Connected': Variant('b', True),
                             }
                         }
                     }
@@ -49,33 +56,59 @@ class ConnectionOwnershipTests(unittest.TestCase):
         )
         with mock.patch.object(desk_monitor, 'MessageBus') as connect:
             connect.return_value.connect = mock.AsyncMock(return_value=bus)
-            self.assertTrue(asyncio.run(desk_monitor.desk_is_connected('AA:BB:CC:DD:EE:FF')))
+            found = asyncio.run(desk_monitor.find_known_desk('AA:BB:CC:DD:EE:FF'))
+        self.assertEqual(found.details['path'], '/desk')
         bus.call.assert_awaited_once()
         self.assertEqual(bus.call.call_args.args[0].member, 'GetManagedObjects')
-        bus.disconnect.assert_called_once()  # Close our D-Bus client, never the desk's connection.
+        bus.disconnect.assert_called_once()
 
-    def test_monitor_leaves_an_existing_connection_alone_even_if_it_appears_during_scan(self):
+    def test_known_connected_and_disconnected_desks_do_not_require_advertising(self):
+        from bleak.backends.device import BLEDevice
+
+        for connected in (True, False):
+            with self.subTest(connected=connected):
+                device = BLEDevice(
+                    'AA:BB:CC:DD:EE:FF', 'Desk', {'path': '/desk', 'props': {'Connected': connected}}
+                )
+                self.run_monitor(device, None, None, 0)
+
+    def test_unknown_desk_falls_back_to_scanning(self):
+        self.run_monitor(None, mock.Mock(), None, 1)
+
+    def test_connection_failure_remains_visible_during_retry(self):
+        self.run_monitor(mock.Mock(), None, RuntimeError('Notifications unavailable'), 0)
+
+    def run_monitor(self, known, scanned, error, scans):
         import desk_monitor
 
-        for connected, scans in [([True], 0), ([False, True], 1)]:
-            with self.subTest(connected=connected), tempfile.TemporaryDirectory() as directory:
-                path = Path(directory) / 'desk.json'
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'desk.json'
 
-                async def start_server(*_args, _path=path, **_kwargs):
-                    _path.with_name('desk.sock').touch()
-                    return mock.AsyncMock()
+            async def start_server(*_args, **_kwargs):
+                path.with_name('desk.sock').touch()
+                return mock.AsyncMock()
 
-                with (
-                    mock.patch.object(desk_monitor.asyncio, 'start_unix_server', side_effect=start_server),
-                    mock.patch.object(desk_monitor, 'desk_is_connected', side_effect=connected),
-                    mock.patch.object(desk_monitor.BleakScanner, 'find_device_by_address') as scan,
-                    mock.patch.object(desk_monitor, 'connect_and_watch') as connect,
-                    mock.patch.object(desk_monitor.asyncio, 'sleep', side_effect=asyncio.CancelledError),
-                ):
-                    with self.assertRaises(asyncio.CancelledError):
-                        asyncio.run(desk_monitor.monitor('AA:BB:CC:DD:EE:FF', path))
-                    self.assertEqual(scan.await_count, scans)
-                    connect.assert_not_awaited()
+            async def retry(_seconds):
+                if error:
+                    self.assertIn(str(error), json.loads(path.read_text())['error'])
+                raise asyncio.CancelledError
+
+            with (
+                mock.patch.object(desk_monitor.asyncio, 'start_unix_server', side_effect=start_server),
+                mock.patch.object(desk_monitor, 'find_known_desk', mock.AsyncMock(return_value=known)),
+                mock.patch.object(
+                    desk_monitor.BleakScanner, 'find_device_by_address', mock.AsyncMock(return_value=scanned)
+                ) as scan,
+                mock.patch.object(
+                    desk_monitor, 'connect_and_watch', mock.AsyncMock(side_effect=error)
+                ) as connect,
+                mock.patch.object(desk_monitor.asyncio, 'sleep', side_effect=retry),
+            ):
+                with self.assertRaises(asyncio.CancelledError):
+                    asyncio.run(desk_monitor.monitor('AA:BB:CC:DD:EE:FF', path))
+                self.assertEqual(scan.await_count, scans)
+                connect.assert_awaited_once()
+                self.assertIs(connect.call_args.args[0], known if known is not None else scanned)
 
 
 class FakeClient:

@@ -96,5 +96,10 @@
       <default>14</default>
       <summary>Active days included in the habit score</summary>
     </key>
+    <key name="seated-snooze" type="u"><range min="1" max="120"/><default>15</default><summary>Minutes to snooze standing reminders</summary></key>
+    <key name="stand-snooze" type="u"><range min="1" max="120"/><default>15</default><summary>Minutes to snooze sitting reminders</summary></key>
+    <key name="input-snooze" type="u"><range min="1" max="120"/><default>10</default><summary>Minutes to snooze hand reminders</summary></key>
+    <key name="snooze-away" type="u"><range min="1" max="120"/><default>15</default><summary>Idle minutes that forgive a snooze</summary></key>
+    <key name="snooze-penalty" type="u"><range min="1" max="10"/><default>2</default><summary>Penalty multiplier for working beyond a snooze</summary></key>
   </schema>
 </schemalist>

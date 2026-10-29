@@ -1,10 +1,10 @@
 .wh-panel {
-  spacing: 9px;
+  spacing: 5px;
 }
 
 .wh-popup {
   padding: 8px 10px 10px;
-  spacing: 14px;
+  spacing: 8px;
 }
 
 .wh-section {
@@ -25,13 +25,13 @@
 }
 
 .wh-cards {
-  spacing: 10px;
+  spacing: 8px;
 }
 
 .wh-card {
   background-color: rgba(128, 128, 128, 0.12);
   border-radius: 12px;
-  padding: 12px 14px;
+  padding: 10px;
   spacing: 9px;
 }
 
@@ -48,7 +48,7 @@
 }
 
 .wh-big {
-  font-size: 2.3em;
+  font-size: 2em;
   font-weight: 300;
   font-feature-settings: "tnum";
 }
@@ -75,5 +75,7 @@
   font-weight: bold;
   font-feature-settings: "tnum";
   border-radius: 11px;
-  padding: 1px 6px;
+  padding: 1px 3px;
 }
+
+.wh-popup { width: 38em; max-width: 42em; }

@@ -34,7 +34,7 @@ export function dailyRecord(state) {
             remindersHeeded: nonnegative(state.heeded), remindersMissed: nonnegative(state.missed)},
         reminders: {seated: nonnegative(state.seated), standingRun: nonnegative(state.standingRun),
             standComplete: state.standComplete === true, input: nonnegative(state.input),
-            lastInputWallMs: nonnegative(state.lastInputWallMs)}};
+            lastInputWallMs: nonnegative(state.lastInputWallMs), snoozes: state.snoozes ?? {}}};
 }
 
 export function modelState(record) {

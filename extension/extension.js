@@ -34,11 +34,6 @@ function readJSON(path) {
     }
 }
 
-function textItem(menu, text) {
-    const item = new PopupMenu.PopupMenuItem(text, {reactive: false, can_focus: false});
-    menu.addMenuItem(item);
-    return item.label;
-}
 
 function label(text = '', {style_class = '', muted = false, x_expand = false, x_align = null} = {}) {
     const actor = new St.Label({text, style_class, x_expand, y_align: Clutter.ActorAlign.CENTER});
@@ -61,7 +56,7 @@ function rule(parent) {
 }
 
 function grid(box, homogeneous = true) {
-    const layout = new Clutter.GridLayout({column_spacing: 18, row_spacing: 7, column_homogeneous: homogeneous});
+    const layout = new Clutter.GridLayout({column_spacing: 10, row_spacing: 7, column_homogeneous: homogeneous});
     box.add_child(new St.Widget({layout_manager: layout, x_expand: true}));
     return layout;
 }
@@ -207,6 +202,8 @@ export default class WorkHabbitsExtension extends Extension {
         this._alerts = {};
         this._socketCancel = new Gio.Cancellable();
 
+        this._postureIcons = Object.fromEntries(['sitting', 'standing'].map(position =>
+            [position, new Gio.FileIcon({file: this.dir.get_child('icons').get_child(`${position}-symbolic.svg`)})]));
         this._indicator = new PanelMenu.Button(0.0, 'work-habbits', false);
         const box = new St.BoxLayout({style_class: 'wh-panel'});
         this._deskIcon = new St.Icon({icon_name: 'preferences-desktop-accessibility-symbolic', style_class: 'system-status-icon'});
@@ -268,6 +265,7 @@ export default class WorkHabbitsExtension extends Extension {
             const meter = new Meter();
             body.add_child(meter);
             const hint = label('');
+            hint.clutter_text?.set_line_wrap(true);
             body.add_child(hint);
             cards.add_child(body);
             return {body, big, of, meter, hint};
@@ -279,6 +277,19 @@ export default class WorkHabbitsExtension extends Extension {
         this._deskButton.connect('clicked', () => this._deskAction());
         this._postureCard.body.add_child(this._deskButton);
         this._handsCard = card('Hands');
+        this._snoozeButton = new St.Button({label: 'Snooze — leaving soon', style_class: 'button wh-desk-button'});
+        this._snoozeButton.connect('clicked', () => {
+            if (!this._localSession() || !this._settings.get_boolean('tracking-enabled')) return;
+            this._model.snooze(Date.now());
+            this._alerts = {};
+            this._save();
+            this._tick();
+        });
+        reminders.add_child(this._snoozeButton);
+        this._snoozeHint = label('', {muted: true});
+        this._snoozeHint.clutter_text?.set_line_wrap(true);
+        reminders.add_child(this._snoozeHint);
+
         rule(popup);
 
         const activity = grid(section(popup, 'Desk and input'));
@@ -286,8 +297,11 @@ export default class WorkHabbitsExtension extends Extension {
         this._metricCells = {};
         const rows = [['standingSeconds', 'Standing'], ['sittingSeconds', 'Sitting'],
             ['awaySeconds', 'Movement breaks'], ['keyStrokes', 'Keystrokes'], ['mouseClicks', 'Clicks']];
+        this._metricRows = {};
         rows.forEach(([metric, title], index) => {
-            activity.attach(label(title), 0, index + 1, 1, 1);
+            const titleActor = label(title);
+            this._metricRows[metric] = [titleActor];
+            activity.attach(titleActor, 0, index + 1, 1, 1);
             this._metricCells[metric] = {};
             PERIODS.forEach((period, column) => {
                 const cell = new St.BoxLayout({style_class: 'wh-cell', x_expand: true, x_align: END});
@@ -297,6 +311,7 @@ export default class WorkHabbitsExtension extends Extension {
                     ? label('', {style_class: 'wh-num wh-small', muted: true}) : null;
                 if (percentage) cell.add_child(percentage);
                 this._metricCells[metric][period] = {value, percentage};
+                this._metricRows[metric].push(cell);
                 activity.attach(cell, column + 1, index + 1, 1, 1);
             });
         });
@@ -309,11 +324,9 @@ export default class WorkHabbitsExtension extends Extension {
             this.openPreferences();
         });
         popup.add_child(settings);
-        this._historyLine = textItem(menu, 'History stays on this computer');
-        menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
-        this._pause = new PopupMenu.PopupSwitchMenuItem('Tracking', this._settings.get_boolean('tracking-enabled'));
-        this._pause.connect('toggled', (_item, enabled) => this._settings.set_boolean('tracking-enabled', enabled));
-        menu.addMenuItem(this._pause);
+        this._historyItem = new PopupMenu.PopupMenuItem('', {reactive: false, can_focus: false});
+        this._historyItem.visible = false;
+        menu.addMenuItem(this._historyItem);
     }
 
     _setCountdownBlink(kind) {
@@ -477,6 +490,9 @@ export default class WorkHabbitsExtension extends Extension {
         const inputAvailable = active && this._eventsAvailable;
         const deskColor = model.deskColor(deskAvailable);
         const inputColor = model.inputColor(inputAvailable, handsIdle);
+        const postureIcon = this._deskReady ? this._postureIcons?.[this._position] : null;
+        if (postureIcon) this._deskIcon.gicon = postureIcon;
+        else this._deskIcon.icon_name = 'preferences-desktop-accessibility-symbolic';
         this._deskIcon.set_style(`color: ${COLORS[deskColor]};`);
         this._inputIcon.set_style(`color: ${COLORS[inputColor]};`);
         const next = model.countdown({desk: deskAvailable, input: inputAvailable, idleSeconds: handsIdle});
@@ -526,15 +542,27 @@ export default class WorkHabbitsExtension extends Extension {
                     ? `Resets in ${formatTimer(SETTINGS.inputResetIdle - handsIdle)}`
                     : `Rest for ${Math.floor(SETTINGS.inputResetIdle / 60)}m to reset`;
         if (this._indicator.menu.isOpen) this._renderMetrics();
-        this._indicator.accessible_name = `work-habbits: posture ${deskColor}, hands ${inputColor}`;
-        this._historyLine.text = this._store.error ? 'History save failed; will retry'
-            : this._store.warnings.length ? 'Unreadable history preserved; see logs' : 'History stays on this computer';
-        this._pause.setToggleState(enabled);
+        this._indicator.accessible_name = `work-habbits: ${this._deskReady ? this._position : 'posture unknown'}, posture ${deskColor}, hands ${inputColor}`;
+        this._historyItem.visible = Boolean(this._store.error || this._store.warnings.length);
+        this._historyItem.label.text = this._store.error ? 'History save failed; will retry'
+            : this._store.warnings.length ? 'Unreadable history preserved; see logs' : '';
+        this._snoozeButton.visible = active && model.snoozable().length > 0;
+        const names = {seated: 'Stand', stand: 'Sit', input: 'Hands'};
+        const states = model.snoozeStates();
+        this._snoozeHint.text = Object.entries(states).map(([name, state]) => {
+            const snooze = model.snoozes[name];
+            return `${names[name]}: ${state === 'snoozed' ? `snoozed ${formatTimer((snooze.until - model.wallMs) / 1000)}`
+                : state === 'over' ? `grace running; continued work counts ×${SETTINGS.snoozePenalty}`
+                    : state === 'forgiven' ? 'stopped working; no penalty' : `${snooze.charged} misses charged`}`;
+        }).join('\n');
+        this._snoozeHint.visible = Boolean(this._snoozeHint.text);
         const postureName = resting ? 'return' : 'stand';
         const postureMessage = resting ? 'Break complete; return to sitting.'
             : mode === 'disabled' ? 'Time for a movement break.' : 'Time to stand up.';
-        this._notify(postureName, deskColor, postureMessage);
-        this._notify('hands', inputColor, `Rest your hands for ${SETTINGS.inputResetIdle / 60} minutes.`);
+        if (states[resting ? 'stand' : 'seated'] !== 'snoozed')
+            this._notify(postureName, deskColor, postureMessage);
+        if (states.input !== 'snoozed')
+            this._notify('hands', inputColor, `Rest your hands for ${SETTINGS.inputResetIdle / 60} minutes.`);
         if (resting) delete this._alerts.stand;
         else delete this._alerts.return;
     }
@@ -542,9 +570,11 @@ export default class WorkHabbitsExtension extends Extension {
     _renderMetrics() {
         this._store.history.set(this._record());
         const totals = this._store.history.totals(this._today);
+        const showMovement = this._settings.get_string('desk-mode') === 'disabled';
+        for (const actor of this._metricRows.awaySeconds) actor.visible = showMovement;
         for (const period of PERIODS) {
             const metrics = totals[period];
-            const postureTotal = metrics.sittingSeconds + metrics.standingSeconds + metrics.awaySeconds;
+            const postureTotal = metrics.sittingSeconds + metrics.standingSeconds + (showMovement ? metrics.awaySeconds : 0);
             for (const [metric, cells] of Object.entries(this._metricCells)) {
                 const cell = cells[period];
                 cell.value.text = metric.endsWith('Seconds') ? formatHours(metrics[metric]) : formatCount(metrics[metric]);

@@ -127,6 +127,8 @@ esac
             self.assertEqual(installed.returncode, 0, installed.stderr)
             extension = root / 'data/gnome-shell/extensions/work-habbits@local'
             self.assertTrue((extension / 'extension.js').is_file())
+            for name in ('sitting', 'standing'):
+                self.assertTrue((extension / 'icons' / f'{name}-symbolic.svg').is_file())
             self.assertTrue((extension / 'schemas/gschemas.compiled').is_file())
             self.assertTrue((app / 'schemas/gschemas.compiled').is_file())
             self.assertTrue((app / 'desk_service.py').is_file())

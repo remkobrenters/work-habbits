@@ -51,12 +51,13 @@ if gnome-extensions info work-habbits@local >/dev/null 2>&1; then
     gnome-extensions disable work-habbits@local
 fi
 systemctl --user stop work-habbits-desk.service 2>/dev/null || true
-install -d "$EXT" "$EXT/schemas" "$APP/schemas" "$UNIT"
+install -d "$EXT" "$EXT/icons" "$EXT/schemas" "$APP/schemas" "$UNIT"
 install -m 0644 "$HERE/desk_monitor.py" "$HERE/desk_service.py" "$HERE/input_monitor.py" "$APP/"
 install -m 0644 "$HERE/work-habbits-desk.service" "$UNIT/work-habbits-desk.service"
 install -m 0644 "$HERE/extension/"*.js "$HERE/extension/stylesheet.css" "$HERE/extension/metadata.json" "$EXT/"
 install -m 0644 "$HERE/extension/schemas/"*.gschema.xml "$EXT/schemas/"
 install -m 0644 "$HERE/extension/schemas/"*.gschema.xml "$APP/schemas/"
+install -m 0644 "$HERE/extension/icons/"*.svg "$EXT/icons/"
 glib-compile-schemas --strict "$EXT/schemas"
 glib-compile-schemas --strict "$APP/schemas"
 systemctl --user daemon-reload
