@@ -14,6 +14,8 @@ import {SETTINGS, WellnessModel, isFreshHeartbeat, isLocalDesktop, isLocalSessio
     configure, deskState, preferencesOf} from './logic.js';
 import {dailyRecord, modelState, formatHours, formatCount, formatTimer} from './history.js';
 import {HistoryStore} from './storage.js';
+import {Sound} from './sound.js';
+import {ChimeSchedule} from './sound-options.js';
 
 const COLORS = {green: '#40cb82', orange: '#f1ac43', red: '#f26a66', gray: '#9ca3af'};
 const PERIODS = ['today', 'week', 'month'];
@@ -80,32 +82,34 @@ function pill(cr, x, y, width, height) {
 }
 
 // A budget bar: fill coloured by state, optional tick at the warning threshold.
+// An unlit level draws only the track, for blinking.
 const Meter = GObject.registerClass({GTypeName: 'WorkHabbitsMeter'},
 class Meter extends St.DrawingArea {
-    _init() {
-        super._init({style_class: 'wh-meter', x_expand: true, y_align: Clutter.ActorAlign.CENTER});
-        this._level = {fraction: 0, color: COLORS.gray, tick: null, dim: false};
+    _init({style_class = 'wh-meter', thickness = 0.5, x_expand = true} = {}) {
+        super._init({style_class, x_expand, y_align: Clutter.ActorAlign.CENTER});
+        this._thickness = thickness;
+        this._level = {fraction: 0, color: COLORS.gray, tick: null, lit: true};
         this.connect('repaint', () => this._draw());
     }
 
     setLevel(level) {
-        this._level = {tick: null, dim: false, ...level};
+        this._level = {tick: null, lit: true, ...level};
         this.queue_repaint();
     }
 
     _draw() {
         const cr = this.get_context();
         const [width, height] = this.get_surface_size();
-        const {fraction, color, tick, dim} = this._level;
-        const bar = height / 2;
+        const {fraction, color, tick, lit} = this._level;
+        const bar = height * this._thickness;
         const top = (height - bar) / 2;
         pill(cr, 0, top, width, bar);
         cr.setSourceRGBA(0.5, 0.5, 0.5, 0.22);
         cr.fill();
         const filled = Math.max(0, Math.min(1, fraction || 0)) * width;
-        if (filled > 0) {
+        if (filled > 0 && lit) {
             pill(cr, 0, top, Math.max(bar, filled), bar);
-            cr.setSourceRGBA(...rgb(color), dim ? 0.45 : 1);
+            cr.setSourceRGBA(...rgb(color), 1);
             cr.fill();
         }
         if (tick !== null) {
@@ -178,6 +182,7 @@ export default class WorkHabbitsExtension extends Extension {
                 this._socketCancel = new Gio.Cancellable();
             }
             if (key === 'input-break' || key === 'tracking-enabled') this._stopReader();
+            if (key.startsWith('sound-')) this._soundError = '';
             if (key === 'input-break') this._nextReaderAttempt = 0;
             if (key === 'desk-mode') {
                 this._settings.set_string('manual-position', 'sitting');
@@ -199,22 +204,20 @@ export default class WorkHabbitsExtension extends Extension {
         this._eventsAvailable = false;
         this._inputError = '';
         this._nextReaderAttempt = 0;
-        this._alerts = {};
         this._socketCancel = new Gio.Cancellable();
+        this._sound = new Sound(this.path, message => {
+            this._soundError = message;
+        });
+        this._soundError = '';
+        this._chimes = new ChimeSchedule();
+        // GNOME's Do Not Disturb turns banners off; it mutes reminder sounds too.
+        this._notificationSettings = new Gio.Settings({schema_id: 'org.gnome.desktop.notifications'});
 
-        this._postureIcons = Object.fromEntries(['sitting', 'standing'].map(position =>
-            [position, new Gio.FileIcon({file: this.dir.get_child('icons').get_child(`${position}-symbolic.svg`)})]));
+        this._postureIcon = new Gio.FileIcon({file: this.dir.get_child('icons').get_child('standing-symbolic.svg')});
         this._indicator = new PanelMenu.Button(0.0, 'work-habbits', false);
         const box = new St.BoxLayout({style_class: 'wh-panel'});
-        this._deskIcon = new St.Icon({icon_name: 'preferences-desktop-accessibility-symbolic', style_class: 'system-status-icon'});
-        this._inputIcon = new St.Icon({icon_name: 'input-keyboard-symbolic', style_class: 'system-status-icon'});
-        this._countdownColor = COLORS.gray;
-        this._blinkKind = null;
         this._blinkId = null;
-        this._blinkStarted = 0;
-        this._countdownStyle = null;
-        this._countdown = new St.Label({y_align: Clutter.ActorAlign.CENTER, style_class: 'wh-countdown'});
-        for (const actor of [this._deskIcon, this._countdown, this._inputIcon]) box.add_child(actor);
+        this._buildPanel(box);
         this._indicator.add_child(box);
         this._buildMenu(this._indicator.menu);
         this._indicator.menu.connect('open-state-changed', (_menu, open) => {
@@ -230,6 +233,51 @@ export default class WorkHabbitsExtension extends Extension {
             this._tick();
             return GLib.SOURCE_CONTINUE;
         });
+    }
+
+    // Top bar: per item an optional icon, the label over its progress bar, and the time.
+    _buildPanel(box) {
+        const item = (title, icon) => {
+            const actor = new St.BoxLayout({style_class: 'wh-gauge', y_align: Clutter.ActorAlign.CENTER});
+            const identity = new St.BoxLayout({...vertical, style_class: 'wh-gauge-identity', y_align: Clutter.ActorAlign.CENTER});
+            const name = label(title, {style_class: 'wh-gauge-name'});
+            const bar = new Meter({style_class: 'wh-panel-meter', thickness: 1, x_expand: false});
+            const time = label('', {style_class: 'wh-gauge-time wh-num', muted: true});
+            time.y_align = Clutter.ActorAlign.START;
+            identity.add_child(name);
+            identity.add_child(bar);
+            for (const child of [icon, identity, time]) actor.add_child(child);
+            box.add_child(actor);
+            return {icon, name, bar, time, gauge: null, blinkStarted: 0, painted: null};
+        };
+        this._panelItems = {
+            posture: item('Posture', new St.Icon({gicon: this._postureIcon, style_class: 'system-status-icon'})),
+            hands: item('Hands', new St.Icon({icon_name: 'input-keyboard-symbolic', style_class: 'system-status-icon'})),
+        };
+    }
+
+    // Orange blinks slowly, red fast; the label and time stay steady.
+    _paintGauges(gauges) {
+        const icons = this._settings.get_boolean('panel-icons');
+        const now = GLib.get_monotonic_time() / 1e6;
+        for (const [name, item] of Object.entries(this._panelItems)) {
+            const gauge = gauges[name];
+            if (gauge.blink !== item.gauge?.blink) item.blinkStarted = now;
+            item.gauge = gauge;
+            item.icon.visible = icons;
+            item.time.text = gauge.seconds === null ? '—' : formatTimer(gauge.seconds);
+        }
+        const blinking = Object.values(gauges).some(gauge => gauge.blink);
+        if (blinking && !this._blinkId) {
+            this._blinkId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 250, () => {
+                this._paintBlink();
+                return GLib.SOURCE_CONTINUE;
+            });
+        } else if (!blinking && this._blinkId) {
+            GLib.Source.remove(this._blinkId);
+            this._blinkId = null;
+        }
+        this._paintBlink();
     }
 
     _buildMenu(menu) {
@@ -281,7 +329,6 @@ export default class WorkHabbitsExtension extends Extension {
         this._snoozeButton.connect('clicked', () => {
             if (!this._localSession() || !this._settings.get_boolean('tracking-enabled')) return;
             this._model.snooze(Date.now());
-            this._alerts = {};
             this._save();
             this._tick();
         });
@@ -324,40 +371,28 @@ export default class WorkHabbitsExtension extends Extension {
             this.openPreferences();
         });
         popup.add_child(settings);
-        this._historyItem = new PopupMenu.PopupMenuItem('', {reactive: false, can_focus: false});
-        this._historyItem.visible = false;
-        menu.addMenuItem(this._historyItem);
+        const statusItem = () => {
+            const item = new PopupMenu.PopupMenuItem('', {reactive: false, can_focus: false});
+            item.visible = false;
+            menu.addMenuItem(item);
+            return item;
+        };
+        this._historyItem = statusItem();
+        this._soundItem = statusItem();
     }
 
-    _setCountdownBlink(kind) {
-        if (kind !== this._blinkKind) this._blinkStarted = GLib.get_monotonic_time() / 1e6;
-        this._blinkKind = kind;
-        if (kind && !this._blinkId) {
-            this._blinkId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 250, () => {
-                this._paintCountdownBlink();
-                if (this._blinkKind)
-                    return GLib.SOURCE_CONTINUE;
-                this._blinkId = null;
-                return GLib.SOURCE_REMOVE;
-            });
-        } else if (!kind && this._blinkId) {
-            GLib.Source.remove(this._blinkId);
-            this._blinkId = null;
-        }
-        this._paintCountdownBlink();
-    }
-
-    _paintCountdownBlink() {
+    _paintBlink() {
         const now = GLib.get_monotonic_time() / 1e6;
-        const kind = this._blinkKind;
-        const halfPeriod = kind === 'near' ? 1 : 0.5;
-        const lit = kind && Math.floor((now - this._blinkStarted) / halfPeriod) % 2 === 0;
-        const background = lit ? kind === 'near' ? '#fcb930' : '#f97a71' : 'transparent';
-        const foreground = lit ? '#000000' : this._countdownColor;
-        const style = `color: ${foreground}; background-color: ${background};`;
-        if (style !== this._countdownStyle) {
-            this._countdown.set_style(style);
-            this._countdownStyle = style;
+        for (const item of Object.values(this._panelItems)) {
+            const {blink, fraction} = item.gauge;
+            const color = COLORS[item.gauge.color];
+            const lit = !blink || Math.floor((now - item.blinkStarted) / (blink === 'slow' ? 1 : 0.5)) % 2 === 0;
+            const painted = `${fraction}|${color}|${lit}`;
+            if (painted === item.painted) continue;
+            item.painted = painted;
+            item.bar.setLevel({fraction, color, lit});
+            item.icon.set_style(`color: ${color};`);
+            item.icon.opacity = lit ? 255 : 60;
         }
     }
 
@@ -488,22 +523,20 @@ export default class WorkHabbitsExtension extends Extension {
         const handsIdle = model.handsIdle(idleSeconds);
         const deskAvailable = active && this._deskReady;
         const inputAvailable = active && this._eventsAvailable;
-        const deskColor = model.deskColor(deskAvailable);
-        const inputColor = model.inputColor(inputAvailable, handsIdle);
-        const postureIcon = this._deskReady ? this._postureIcons?.[this._position] : null;
-        if (postureIcon) this._deskIcon.gicon = postureIcon;
-        else this._deskIcon.icon_name = 'preferences-desktop-accessibility-symbolic';
-        this._deskIcon.set_style(`color: ${COLORS[deskColor]};`);
-        this._inputIcon.set_style(`color: ${COLORS[inputColor]};`);
-        const next = model.countdown({desk: deskAvailable, input: inputAvailable, idleSeconds: handsIdle});
-        this._countdown.text = next ? next.icon === 'desk'
-            ? `◂ ${formatTimer(next.seconds)}` : `${formatTimer(next.seconds)} ▸` : '';
-        this._countdownColor = COLORS[next?.icon === 'desk' ? deskColor : inputColor];
-        const urgency = model.reminderUrgency({
-            desk: deskAvailable && idleSeconds < SETTINGS.postureActiveWindow,
-            input: inputAvailable && handsIdle < SETTINGS.inputActiveWindow,
-        });
-        this._setCountdownBlink(next ? urgency[next.icon] : null);
+        const gauges = model.gauges({desk: deskAvailable, input: inputAvailable, idleSeconds, handsIdle});
+        const deskColor = gauges.posture.color;
+        const inputColor = gauges.hands.color;
+        this._paintGauges(gauges);
+        const red = model.redReminders({active, input: inputAvailable, idleSeconds, handsIdle});
+        const allowed = this._settings.get_boolean('sound-enabled') && this._notificationSettings.get_boolean('show-banners');
+        const chime = this._chimes.update({red, allowed, repeatSeconds: this._settings.get_uint('sound-repeat'),
+            nowSeconds: GLib.get_monotonic_time() / 1e6});
+        if (chime === 'play')
+            this._sound.play(this._settings.get_uint('sound-effect'), this._settings.get_uint('sound-volume'));
+        else if (chime === 'stop')
+            this._sound.stop();
+        const tooLate = (gauge, name) => gauge.color === 'red' && !model.snoozes[name]
+            ? `Too late: penalty in ${formatTimer(gauge.seconds)}` : '';
         const resting = ['standing', 'away'].includes(this._position);
         const reason = !enabled ? 'Tracking paused' : !active ? 'Waiting for an active, unlocked local desktop'
             : !this._deskReady ? this._desk?.error || 'Bluetooth desk unavailable; input tracking continues' : '';
@@ -516,7 +549,7 @@ export default class WorkHabbitsExtension extends Extension {
         posture.big.set_style(`color: ${COLORS[deskColor]};`);
         posture.of.text = `of ${Math.floor(due / 60)}m ${resting ? breakName : 'seated'}`;
         posture.meter.setLevel({fraction: elapsed / late, color: COLORS[deskColor], tick: due / late});
-        posture.hint.text = reason || (resting
+        posture.hint.text = reason || tooLate(gauges.posture, resting ? 'stand' : 'seated') || (resting
             ? model.standComplete ? 'Break complete; return to sitting' : `${formatTimer(due - elapsed)} to go`
             : model.seated >= due ? `Time for ${mode === 'disabled' ? 'a movement break' : 'a stand'}`
                 : `Next break in ${formatTimer(due - elapsed)}`);
@@ -537,34 +570,28 @@ export default class WorkHabbitsExtension extends Extension {
         hands.meter.setLevel({fraction: model.input / SETTINGS.inputLate, color: COLORS[inputColor],
             tick: SETTINGS.inputDue / SETTINGS.inputLate});
         hands.hint.text = !active ? 'Tracking paused' : !this._eventsAvailable
-            ? this._inputError || 'Waiting for input reader' : model.input === 0 ? 'Rested; timer reset'
-                : handsIdle >= SETTINGS.inputActiveWindow
+            ? this._inputError || 'Waiting for input reader' : tooLate(gauges.hands, 'input')
+                || (model.input === 0 ? 'Rested; timer reset' : handsIdle >= SETTINGS.inputActiveWindow
                     ? `Resets in ${formatTimer(SETTINGS.inputResetIdle - handsIdle)}`
-                    : `Rest for ${Math.floor(SETTINGS.inputResetIdle / 60)}m to reset`;
+                    : `Rest for ${Math.floor(SETTINGS.inputResetIdle / 60)}m to reset`);
         if (this._indicator.menu.isOpen) this._renderMetrics();
         this._indicator.accessible_name = `work-habbits: ${this._deskReady ? this._position : 'posture unknown'}, posture ${deskColor}, hands ${inputColor}`;
-        this._historyItem.visible = Boolean(this._store.error || this._store.warnings.length);
-        this._historyItem.label.text = this._store.error ? 'History save failed; will retry'
-            : this._store.warnings.length ? 'Unreadable history preserved; see logs' : '';
+        const status = (item, text) => {
+            item.visible = Boolean(text);
+            item.label.text = text;
+        };
+        status(this._historyItem, this._store.error ? 'History save failed; will retry'
+            : this._store.warnings.length ? 'Unreadable history preserved; see logs' : '');
+        status(this._soundItem, this._soundError);
         this._snoozeButton.visible = active && model.snoozable().length > 0;
         const names = {seated: 'Stand', stand: 'Sit', input: 'Hands'};
         const states = model.snoozeStates();
         this._snoozeHint.text = Object.entries(states).map(([name, state]) => {
-            const snooze = model.snoozes[name];
-            return `${names[name]}: ${state === 'snoozed' ? `snoozed ${formatTimer((snooze.until - model.wallMs) / 1000)}`
-                : state === 'over' ? `grace running; continued work counts ×${SETTINGS.snoozePenalty}`
-                    : state === 'forgiven' ? 'stopped working; no penalty' : `${snooze.charged} misses charged`}`;
+            const time = formatTimer(model.snoozeSeconds(name));
+            const doubled = model.snoozes[name].state === 'active' ? `, counts ×${SETTINGS.snoozePenalty}` : '';
+            return `${names[name]}: ${state === 'snoozed' ? `snoozed ${time}` : `penalty in ${time}${doubled}`}`;
         }).join('\n');
         this._snoozeHint.visible = Boolean(this._snoozeHint.text);
-        const postureName = resting ? 'return' : 'stand';
-        const postureMessage = resting ? 'Break complete; return to sitting.'
-            : mode === 'disabled' ? 'Time for a movement break.' : 'Time to stand up.';
-        if (states[resting ? 'stand' : 'seated'] !== 'snoozed')
-            this._notify(postureName, deskColor, postureMessage);
-        if (states.input !== 'snoozed')
-            this._notify('hands', inputColor, `Rest your hands for ${SETTINGS.inputResetIdle / 60} minutes.`);
-        if (resting) delete this._alerts.stand;
-        else delete this._alerts.return;
     }
 
     _renderMetrics() {
@@ -587,13 +614,6 @@ export default class WorkHabbitsExtension extends Extension {
         this._scoreBar.setScore(habit.score);
         this._scoreCaption.text = habit.score === null ? 'Standing and hand breaks you take will score here'
             : `Last ${habit.days} active days: ${habit.heeded} reminders heeded, ${habit.missed} missed`;
-    }
-
-    _notify(name, color, message) {
-        if (color === 'gray') return;
-        if (['orange', 'red'].includes(color) && color !== this._alerts[name] && this._settings.get_boolean('notifications-enabled'))
-            Main.notify('work-habbits', message);
-        this._alerts[name] = color;
     }
 
     _deskAction() {
@@ -641,7 +661,6 @@ export default class WorkHabbitsExtension extends Extension {
         this._save();
         this._today = today;
         this._model = new WellnessModel(modelState(this._store.history.days.get(today)));
-        this._alerts = {};
     }
 
     _save() {
@@ -657,6 +676,10 @@ export default class WorkHabbitsExtension extends Extension {
         this._socketCancel?.cancel();
         this._socketCancel = null;
         this._stopReader();
+        this._sound?.stop();
+        this._sound = null;
+        this._chimes = null;
+        this._notificationSettings = null;
         this._save();
         if (this._settingsChangedId) this._settings.disconnect(this._settingsChangedId);
         this._settingsChangedId = null;

@@ -22,9 +22,15 @@ The dashboard test uses Node's built-in VM modules (`--experimental-vm-modules`)
 
 `extension.js` owns UI/session lifecycle; `logic.js` and `history.js` hold portable logic; `storage.js` persists records. `input_monitor.py` produces X11 summaries. `desk_service.py` observes settings and owns the optional `desk_monitor.py` child. GI comes from system Python; Python package dependencies stay in the app environment.
 
-## Screenshots
+## Previews
 
-Keep screenshots in `docs/screenshots/`: `metrics-light.png` and `metrics-dark.png` show the dashboard, and `posture-*.png` show panel reminder states. Capture only the menu or panel indicators, without unrelated windows, notifications, or private information. Review images before committing them, use descriptive filenames for additional views, and update the README's relative image links.
+Keep previews in `docs/previews/`. They are renderings of `docs/previews/previews.html` with sample data, not desktop screenshots, and the README says so. After a UI change, update that page to match `extension/stylesheet.css` and the menu texts, then render every scene:
+
+```bash
+node scripts/render_previews.mjs
+```
+
+It needs Google Chrome; pass another Chrome or Chromium binary as an argument. Review every image before committing it, use descriptive scene names for additional views, and update the README's relative image links.
 
 Do not add broken image links or present rendered mockups as actual screenshots.
 
@@ -32,10 +38,10 @@ Do not add broken image links or present rendered mockups as actual screenshots.
 
 Run `make check`, `make audit`, and a live desktop check. Use `make dist` for a clean `dist/work-habbits-source.zip`: an allowlist includes only project source/docs/tests, excludes caches and environment files, and omits owner/path metadata. The archive is generated output and is not committed.
 
-Create a repository named `work-habbits` from the public sources. Inspect staged files and diffs before pushing. `.gitignore` excludes local dotfiles, environments, caches, runtime data, private keys, and distributions. Keep the MIT license and security policy. Keep the README screenshots current with the UI.
+Create a repository named `work-habbits` from the public sources. Inspect staged files and diffs before pushing. `.gitignore` excludes local dotfiles, environments, caches, runtime data, private keys, and distributions. Keep the MIT license and security policy. Keep the README previews current with the UI.
 
 The workflow has **Quality** and **Dependency security** checks. It uses read-only repository permissions, a commit-pinned checkout action, no stored Git credentials, no secrets, and `pull_request` rather than privileged PR events. It runs on pushes, PRs, weekly, and manually. The security job scans direct/transitive runtime and development dependencies. Dependabot checks Python packages and Actions weekly. No job publishes or deploys automatically.
 
 After the first green workflow run, create a branch ruleset requiring **Quality** and **Dependency security**, require pull requests, and block force pushes. Enable Dependabot alerts, secret scanning/push protection where available, and private vulnerability reporting. These repository settings must be applied on GitHub; workflow files cannot enforce them.
 
-Before calling a release ready, confirm both jobs are green, screenshots contain only sample data, and manual posture/input/pause checks work on the tested desktop. Bluetooth changes additionally need a supervised hardware check. An unavailable audit is not a passing audit, and an expected setup is not a tested setup.
+Before calling a release ready, confirm both jobs are green, previews contain only sample data, and manual posture/input/pause checks work on the tested desktop. Bluetooth changes additionally need a supervised hardware check. An unavailable audit is not a passing audit, and an expected setup is not a tested setup.

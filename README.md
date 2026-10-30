@@ -1,28 +1,32 @@
 # work-habbits
 
-**v1.1.0** · [Release notes](docs/releases/v1.1.0.md)
+**v1.2.0** · [Release notes](docs/releases/v1.2.0.md)
 
-A small GNOME extension for desk posture, movement breaks, and keyboard/mouse activity. The panel keeps colored posture and hands cards, progress bars, a habit score graph, and daily/weekly/monthly totals. Activity stays on your computer; there are no accounts, telemetry, HTTP clients, or remote control endpoints.
+A small GNOME extension for desk posture, movement breaks, and keyboard/mouse activity. The top bar shows posture and hands progress bars; the menu keeps colored posture and hands cards, a habit score graph, and daily/weekly/monthly totals. Activity stays on your computer; there are no accounts, telemetry, HTTP clients, or remote control endpoints.
 
-## Screenshots
+## Previews
 
-The dashboard images below show v1.0.0. Version 1.1.0 has a narrower menu, posture icons, snooze controls, and Tracking in Settings.
+Rendered previews of the interface with sample data. They are not desktop screenshots. Click an image to view it at full size.
 
-### Dashboard
+### Top bar
 
-The menu brings posture and hand reminders, the habit score, and activity totals together in both themes. Click an image to view it at full size.
+Posture and Hands each show a label, a bar that fills toward the next change, and the time left.
+
+| Plenty of time | Change due | Too late |
+| --- | --- | --- |
+| ![Top bar with green Posture and Hands bars, 1 hour 29 minutes and 12 minutes 30 seconds left](docs/previews/panel-green.png) | ![Full orange Posture bar that blinks slowly, 1 minute 12 seconds before red](docs/previews/panel-orange.png) | ![Full red Posture bar that blinks fast, 3 minutes 48 seconds until the next penalty](docs/previews/panel-red.png) |
+
+| Snoozed | Hands unavailable | Optional icons |
+| --- | --- | --- |
+| ![Steady orange Posture bar while snoozed, 14 minutes 12 seconds left](docs/previews/panel-snoozed.png) | ![Gray, empty Hands bar with a dash, as on Wayland without input counts](docs/previews/panel-unavailable.png) | ![Standing figure and keyboard icons colored like their bars in green, orange and red](docs/previews/panel-icons.png) |
+
+### Menu
+
+The menu brings posture and hand reminders, the habit score, and activity totals together in both themes.
 
 | Light theme | Dark theme |
 | --- | --- |
-| [![Dashboard in a light theme: posture and hands progress, habit score, and activity totals](docs/screenshots/metrics-light.png)](docs/screenshots/metrics-light.png) | [![Dashboard in a dark theme: posture and hands progress, habit score, and activity totals](docs/screenshots/metrics-dark.png)](docs/screenshots/metrics-dark.png) |
-
-### Panel reminders
-
-The arrow points toward the indicator for the next action. The countdown highlights a due break and becomes more urgent while it remains overdue.
-
-| Before the reminder | Reminder due | Reminder overdue |
-| --- | --- | --- |
-| ![Green posture countdown with 5 minutes and 9 seconds remaining](docs/screenshots/posture-normal.png) | ![Posture reminder with a yellow-orange countdown highlight](docs/screenshots/posture-due.png) | ![Overdue posture reminder with a red countdown highlight](docs/screenshots/posture-overdue.png) |
+| [![Menu in a light theme: habit score, a red posture card with its penalty countdown, hands progress, snooze button and activity totals](docs/previews/menu-light.png)](docs/previews/menu-light.png) | [![Menu in a dark theme: habit score, a red posture card with its penalty countdown, hands progress, snooze button and activity totals](docs/previews/menu-dark.png)](docs/previews/menu-dark.png) |
 
 ## Compatibility
 
@@ -56,7 +60,7 @@ Input counts work independently of Bluetooth availability on Xorg. Pausing **Tra
 Use a terminal in your active local GNOME desktop session, without sudo. On Ubuntu, install prerequisites once:
 
 ```bash
-sudo apt install python3-venv python3-gi gir1.2-adw-1 libglib2.0-bin
+sudo apt install python3-venv python3-gi gir1.2-adw-1 libglib2.0-bin gstreamer1.0-plugins-base-apps
 ```
 
 From the checkout:
@@ -69,7 +73,7 @@ For optional Bluetooth support, use `./install.sh --bluetooth` instead, or run i
 
 Log out and back in to load the extension. On Xorg, **Alt+F2 → restart → Enter** also reloads Shell. Updated JavaScript modules need a Shell reload. Wayland does not support an in-place Shell restart.
 
-Open **Settings** in the panel menu to select a desk mode, adjust heights and reminder times, or reset defaults. Settings survive reinstalls. New installations and reset defaults use manual mode; Bluetooth is opt-in.
+Open **Settings** in the panel menu to select a desk mode, adjust heights, reminder times and the reminder sound and its volume, or reset defaults. Settings survive reinstalls. New installations and reset defaults use manual mode; Bluetooth is opt-in.
 
 Installation paths:
 
@@ -84,11 +88,14 @@ Install/uninstall manage only work-habbits. Other applications, extensions, serv
 
 Configurable defaults:
 
-- After **120 active seated minutes**, remind you to stand or take a movement break; red after 5 more active minutes.
-- A **20-minute stand or marked movement break** resets the seated timer. Remind you to return to sitting, with a 5-minute active grace before red.
+- After **120 active seated minutes**, remind you to stand or take a movement break; red after 2 more active minutes.
+- A **20-minute stand or marked movement break** resets the seated timer. Remind you to return to sitting, with a 2-minute orange warning before red.
 - After **25 active input minutes**, remind you to rest your hands; red after one more minute. **2 continuous minutes without hand input** reset this timer.
+- Red lasts at most **10 active minutes**: a penalty halfway, another at the end, then the timer for your current posture or your hands starts a new round. An ignored reminder never charges more than two misses per round.
 
-Indicators and progress charts are green below a deadline, orange when due, red when overdue, and gray when unavailable. The countdown blinks near its deadline, then red after 30 active seconds overdue. Desktop banners follow the notification switch and GNOME's notification controls.
+The top bar shows Posture and Hands, each with a bar that fills toward the next change and the time until it. Bars, and the optional icons, are green before a deadline, blink orange slowly when due, blink red fast when too late, and are gray when unavailable. In orange the time counts down to red; in red it counts down to the next penalty.
+
+Orange is silent. When a reminder turns red, a sound plays and repeats every 15 seconds by default while you keep working (once, every 15 or 30 seconds, or every minute; three bundled sounds at an adjustable volume, 70% by default). Locked, idle and paused time stays silent, and GNOME's Do Not Disturb mutes the sound while the bars keep blinking. Reminders never show desktop banners. Sounds play through `gst-play-1.0`.
 
 Sitting/standing activity totals accumulate while the local desktop is active and idle time is below 60 seconds. A standing break continues without input while the local session is unlocked. A marked walk continues while locked, but pauses when tracking is disabled or the login becomes inactive. Mark your return explicitly; manual posture is your report, not sensor data.
 
@@ -96,9 +103,9 @@ The hand timer runs while input happened within the last 10 seconds. Typing, cli
 
 Locking, switching users/TTYs, and remote sessions stop input collection. A Bluetooth disconnect pauses sensor-based posture timers. Suspend and process downtime never count as inferred activity. Daily totals and reminder progress persist across extension restarts and start anew each local calendar day.
 
-Tracking can be paused in Settings; this pauses collection, reminders and the Bluetooth helper while keeping history. The menu shows a **Snooze — leaving soon** button when a reminder is due. Like Workspace Monitor, it snoozes standing/sitting reminders for 15 minutes and hand reminders for 10 minutes (configurable). Misses are held during the snooze. Continued active work after its grace charges held misses twice by default; taking the break clears them. Locking or leaving the local session forgives held misses immediately; prolonged idle time also forgives them. Locked and idle time never advances penalty grace. Snoozes survive Shell restarts.
+Tracking can be paused in Settings; this pauses collection, reminders and the Bluetooth helper while keeping history. The menu shows a **Snooze — leaving soon** button while a reminder is orange or red, once per round. Like Workspace Monitor, it snoozes standing/sitting reminders for 15 minutes and hand reminders for 10 minutes (configurable): the bar stays steady orange, the sound stops, and penalties already charged in this round are taken back. If you are still working when the snooze runs out, a fresh red window starts in which both penalties count twice by default, so at most four misses. Taking the break clears the snooze. Locking, leaving the local session or prolonged idle time cancels the double penalty. Locked and idle time never advances a red window. Snoozes survive Shell restarts.
 
-The red-to-green habit score shows timely breaks divided by all scored reminders over the last 14 active days (configurable). Completing a posture break before red, returning to sitting within the grace, and resting hands after orange but before red earn points. Reaching red adds a miss; more active time in red adds misses at the configured intervals. Ordinary hand rests before a reminder earn no points. Inactive time adds no misses.
+The red-to-green habit score shows timely breaks divided by all scored reminders over the last 14 active days (configurable). Completing a posture break before red, returning to sitting before red, and resting hands after orange but before red earn points. Doing so in red before the first penalty earns nothing and costs nothing. A red window charges a miss halfway and another at its end, then starts a new round. Ordinary hand rests before a reminder earn no points. Inactive time adds no misses.
 
 ## Bluetooth protocol and safety
 
@@ -180,6 +187,6 @@ Owner-only backups of both applications' original records, the import plan, and 
 
 ## Development and publication
 
-[CONTRIBUTING.md](CONTRIBUTING.md) covers checks, screenshots, and GitHub setup. [SECURITY.md](SECURITY.md) covers vulnerability reporting. GitHub checks code style, security lint, shell/JavaScript syntax, schemas, behavior, and dependency advisories on pushes/PRs and weekly. Dependabot proposes weekly updates. `make dist` creates a source archive that excludes local configuration and caches.
+[CONTRIBUTING.md](CONTRIBUTING.md) covers checks, previews, and GitHub setup. [SECURITY.md](SECURITY.md) covers vulnerability reporting. GitHub checks code style, security lint, shell/JavaScript syntax, schemas, behavior, and dependency advisories on pushes/PRs and weekly. Dependabot proposes weekly updates. `make dist` creates a source archive that excludes local configuration and caches.
 
-Licensed under [MIT](LICENSE).
+Licensed under [MIT](LICENSE). Bundled notification sounds are third-party Pixabay content; see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
