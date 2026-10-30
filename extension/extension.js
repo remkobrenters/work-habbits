@@ -527,7 +527,7 @@ export default class WorkHabbitsExtension extends Extension {
         const deskColor = gauges.posture.color;
         const inputColor = gauges.hands.color;
         this._paintGauges(gauges);
-        const red = model.redReminders({active, idleSeconds, handsIdle});
+        const red = model.redReminders({active, input: inputAvailable, idleSeconds, handsIdle});
         const allowed = this._settings.get_boolean('sound-enabled') && this._notificationSettings.get_boolean('show-banners');
         const chime = this._chimes.update({red, allowed, repeatSeconds: this._settings.get_uint('sound-repeat'),
             nowSeconds: GLib.get_monotonic_time() / 1e6});

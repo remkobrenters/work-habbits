@@ -292,13 +292,13 @@ export class WellnessModel {
     }
 
     // Reminders whose round is red (a run-out snooze included), and whether the user is active for each.
-    redReminders({active, idleSeconds, handsIdle}, cfg = SETTINGS) {
+    redReminders({active, input, idleSeconds, handsIdle}, cfg = SETTINGS) {
         const reminders = [];
         const posture = this._postureReminder();
         if (this.lastPosition !== 'unknown' && this._color(posture, cfg) === 'red')
             reminders.push({name: posture, active: active && idleSeconds < cfg.postureActiveWindow});
         if (this._color('input', cfg) === 'red')
-            reminders.push({name: 'input', active: active && handsIdle < cfg.inputActiveWindow});
+            reminders.push({name: 'input', active: active && input && handsIdle < cfg.inputActiveWindow});
         return reminders;
     }
 
