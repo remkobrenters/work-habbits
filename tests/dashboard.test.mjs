@@ -31,6 +31,7 @@ class Actor {
 class MenuItem extends Actor {
     constructor(text, props = {}) { super(props); this.label = new Actor({text}); }
 }
+const notified = [];
 const registered = new Set(['Meter', 'ScoreBar', 'ExampleExtensionMeter', 'ExampleExtensionScoreBar']);
 const modules = new Map();
 const dependencies = {
@@ -51,7 +52,7 @@ const dependencies = {
         timeout_add: () => 1, Source: {remove() {}}, PRIORITY_DEFAULT: 0},
     'gi://Gio': {},
     'gi://Meta': {is_wayland_compositor: () => true},
-    'resource:///org/gnome/shell/ui/main.js': {},
+    'resource:///org/gnome/shell/ui/main.js': {notify: (...args) => notified.push(args)},
     'resource:///org/gnome/shell/misc/loginManager.js': {},
     'resource:///org/gnome/shell/ui/panelMenu.js': {},
     'resource:///org/gnome/shell/ui/popupMenu.js': {PopupMenuItem: MenuItem,
@@ -84,7 +85,7 @@ function buildApp({seated = SETTINGS.seatedDue, input = SETTINGS.inputDue} = {})
     const app = new extension.namespace.default();
     const menu = {box: new Actor(), isOpen: true, items: [], addMenuItem(item) { this.items.push(item); }};
     app._settings = {get_string: () => 'manual',
-        get_boolean: key => ({'panel-icons': state.icons, 'notifications-enabled': false, 'sound-enabled': true})[key] ?? false,
+        get_boolean: key => ({'panel-icons': state.icons, 'notifications-enabled': true, 'sound-enabled': true})[key] ?? false,
         get_uint: key => ({'sound-effect': 3, 'sound-repeat': 15})[key]};
     app._indicator = {menu};
     app._postureIcon = 'standing-icon';
@@ -96,7 +97,6 @@ function buildApp({seated = SETTINGS.seatedDue, input = SETTINGS.inputDue} = {})
     app._deskReady = true;
     app._eventsAvailable = true;
     app._position = 'sitting';
-    app._alerts = {};
     app._blinkId = null;
     app._model = new WellnessModel({seated, input,
         todaySitting: 3600, todayStanding: 1200, keys: 100, clicks: 20, heeded: 3, missed: 1, lastInputWallMs: 1000});
@@ -167,6 +167,9 @@ test('dashboard keeps colored charts, posture percentages and score while coexis
     assert.equal(app._postureCard.meter._level.color, '#f26a66');
     assert.equal(posture.bar._level.color, '#f26a66');
     assert.equal(app._blink.posture, 'fast');
+    assert.equal(app._postureCard.hint.text, 'Too late: penalty in 5:00');
+    assert.equal(app._handsCard.hint.text, 'Too late: penalty in 5:00');
+    assert.deepEqual(notified, [], 'Reminders never raise desktop banners');
     app._paint(false, 0, 'manual', false);
     assert.equal(posture.time.text, '—');
     assert.equal(hands.bar._level.color, '#9ca3af');

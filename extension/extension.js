@@ -201,7 +201,6 @@ export default class WorkHabbitsExtension extends Extension {
         this._eventsAvailable = false;
         this._inputError = '';
         this._nextReaderAttempt = 0;
-        this._alerts = {};
         this._socketCancel = new Gio.Cancellable();
 
         this._postureIcon = new Gio.FileIcon({file: this.dir.get_child('icons').get_child('standing-symbolic.svg')});
@@ -310,7 +309,6 @@ export default class WorkHabbitsExtension extends Extension {
         this._snoozeButton.connect('clicked', () => {
             if (!this._localSession() || !this._settings.get_boolean('tracking-enabled')) return;
             this._model.snooze(Date.now());
-            this._alerts = {};
             this._save();
             this._tick();
         });
@@ -523,7 +521,10 @@ export default class WorkHabbitsExtension extends Extension {
         const inputAvailable = active && this._eventsAvailable;
         const deskColor = model.deskColor(deskAvailable);
         const inputColor = model.inputColor(inputAvailable, handsIdle);
-        this._paintGauges(model.gauges({desk: deskAvailable, input: inputAvailable, idleSeconds, handsIdle}));
+        const gauges = model.gauges({desk: deskAvailable, input: inputAvailable, idleSeconds, handsIdle});
+        this._paintGauges(gauges);
+        const tooLate = (gauge, name) => gauge.color === 'red' && !model.snoozes[name]
+            ? `Too late: penalty in ${formatTimer(gauge.seconds)}` : '';
         const resting = ['standing', 'away'].includes(this._position);
         const reason = !enabled ? 'Tracking paused' : !active ? 'Waiting for an active, unlocked local desktop'
             : !this._deskReady ? this._desk?.error || 'Bluetooth desk unavailable; input tracking continues' : '';
@@ -536,7 +537,7 @@ export default class WorkHabbitsExtension extends Extension {
         posture.big.set_style(`color: ${COLORS[deskColor]};`);
         posture.of.text = `of ${Math.floor(due / 60)}m ${resting ? breakName : 'seated'}`;
         posture.meter.setLevel({fraction: elapsed / late, color: COLORS[deskColor], tick: due / late});
-        posture.hint.text = reason || (resting
+        posture.hint.text = reason || tooLate(gauges.posture, resting ? 'stand' : 'seated') || (resting
             ? model.standComplete ? 'Break complete; return to sitting' : `${formatTimer(due - elapsed)} to go`
             : model.seated >= due ? `Time for ${mode === 'disabled' ? 'a movement break' : 'a stand'}`
                 : `Next break in ${formatTimer(due - elapsed)}`);
@@ -557,10 +558,10 @@ export default class WorkHabbitsExtension extends Extension {
         hands.meter.setLevel({fraction: model.input / SETTINGS.inputLate, color: COLORS[inputColor],
             tick: SETTINGS.inputDue / SETTINGS.inputLate});
         hands.hint.text = !active ? 'Tracking paused' : !this._eventsAvailable
-            ? this._inputError || 'Waiting for input reader' : model.input === 0 ? 'Rested; timer reset'
-                : handsIdle >= SETTINGS.inputActiveWindow
+            ? this._inputError || 'Waiting for input reader' : tooLate(gauges.hands, 'input')
+                || (model.input === 0 ? 'Rested; timer reset' : handsIdle >= SETTINGS.inputActiveWindow
                     ? `Resets in ${formatTimer(SETTINGS.inputResetIdle - handsIdle)}`
-                    : `Rest for ${Math.floor(SETTINGS.inputResetIdle / 60)}m to reset`;
+                    : `Rest for ${Math.floor(SETTINGS.inputResetIdle / 60)}m to reset`);
         if (this._indicator.menu.isOpen) this._renderMetrics();
         this._indicator.accessible_name = `work-habbits: ${this._deskReady ? this._position : 'posture unknown'}, posture ${deskColor}, hands ${inputColor}`;
         this._historyItem.visible = Boolean(this._store.error || this._store.warnings.length);
@@ -570,21 +571,11 @@ export default class WorkHabbitsExtension extends Extension {
         const names = {seated: 'Stand', stand: 'Sit', input: 'Hands'};
         const states = model.snoozeStates();
         this._snoozeHint.text = Object.entries(states).map(([name, state]) => {
-            const snooze = model.snoozes[name];
-            return `${names[name]}: ${state === 'snoozed' ? `snoozed ${formatTimer((snooze.until - model.wallMs) / 1000)}`
-                : state === 'over' ? `grace running; continued work counts ×${SETTINGS.snoozePenalty}`
-                    : state === 'forgiven' ? 'stopped working; no penalty' : `${snooze.charged} misses charged`}`;
+            const time = formatTimer(model.snoozeSeconds(name));
+            return `${names[name]}: ${state === 'snoozed' ? `snoozed ${time}` : model.snoozes[name].state === 'active'
+                ? `penalty in ${time}, counts ×${SETTINGS.snoozePenalty}` : `penalty in ${time}`}`;
         }).join('\n');
         this._snoozeHint.visible = Boolean(this._snoozeHint.text);
-        const postureName = resting ? 'return' : 'stand';
-        const postureMessage = resting ? 'Break complete; return to sitting.'
-            : mode === 'disabled' ? 'Time for a movement break.' : 'Time to stand up.';
-        if (states[resting ? 'stand' : 'seated'] !== 'snoozed')
-            this._notify(postureName, deskColor, postureMessage);
-        if (states.input !== 'snoozed')
-            this._notify('hands', inputColor, `Rest your hands for ${SETTINGS.inputResetIdle / 60} minutes.`);
-        if (resting) delete this._alerts.stand;
-        else delete this._alerts.return;
     }
 
     _renderMetrics() {
@@ -607,13 +598,6 @@ export default class WorkHabbitsExtension extends Extension {
         this._scoreBar.setScore(habit.score);
         this._scoreCaption.text = habit.score === null ? 'Standing and hand breaks you take will score here'
             : `Last ${habit.days} active days: ${habit.heeded} reminders heeded, ${habit.missed} missed`;
-    }
-
-    _notify(name, color, message) {
-        if (color === 'gray') return;
-        if (['orange', 'red'].includes(color) && color !== this._alerts[name] && this._settings.get_boolean('notifications-enabled'))
-            Main.notify('work-habbits', message);
-        this._alerts[name] = color;
     }
 
     _deskAction() {
@@ -661,7 +645,6 @@ export default class WorkHabbitsExtension extends Extension {
         this._save();
         this._today = today;
         this._model = new WellnessModel(modelState(this._store.history.days.get(today)));
-        this._alerts = {};
     }
 
     _save() {

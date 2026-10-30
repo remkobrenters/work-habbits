@@ -12,8 +12,7 @@ export default class WorkHabbitsPreferences extends ExtensionPreferences {
         const general = new Adw.PreferencesGroup({title: 'Tracking',
             description: 'Posture reminders on Xorg or Wayland. Keyboard/mouse counts require Xorg. Turning tracking off pauses input collection, posture timers, reminders and the Bluetooth helper. History is kept.'});
         page.add(general);
-        for (const [key, title] of [['tracking-enabled', 'Enable tracking'], ['notifications-enabled', 'Show reminder notifications'],
-            ['panel-icons', 'Show icons in the top bar']]) {
+        for (const [key, title] of [['tracking-enabled', 'Enable tracking'], ['panel-icons', 'Show icons in the top bar']]) {
             const row = new Adw.SwitchRow({title});
             settings.bind(key, row, 'active', Gio.SettingsBindFlags.DEFAULT);
             general.add(row);
