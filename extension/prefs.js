@@ -39,18 +39,18 @@ export default class WorkHabbitsPreferences extends ExtensionPreferences {
         const groups = [
             [desk, [['desk-sit', 'Sitting height (cm)'], ['desk-stand', 'Standing height (cm)']]],
             [new Adw.PreferencesGroup({title: 'Posture reminders (minutes)'}), [
-                ['seated-due', 'Stand or take a walk after'], ['seated-grace', 'Further seated time before red'],
-                ['stand-required', 'Standing / movement break length'], ['stand-grace', 'Return to sitting within']]],
+                ['seated-due', 'Stand or take a walk after'], ['seated-grace', 'Orange warning before red (stand up)'],
+                ['stand-required', 'Standing / movement break length'], ['stand-grace', 'Orange warning before red (sit down)']]],
             [new Adw.PreferencesGroup({title: 'Hand reminders (minutes)'}), [
-                ['input-due', 'Hand break after active input'], ['input-grace', 'Further input time before red'],
+                ['input-due', 'Hand break after active input'], ['input-grace', 'Orange warning before red'],
                 ['input-break', 'Continuous rest to reset the timer']]],
             [new Adw.PreferencesGroup({title: 'Snooze — leaving soon'}), [
                 ['seated-snooze', 'Snooze standing reminders (minutes)'], ['stand-snooze', 'Snooze sitting reminders (minutes)'],
                 ['input-snooze', 'Snooze hand reminders (minutes)'], ['snooze-away', 'Idle minutes to forgive snoozes'],
                 ['snooze-penalty', 'Continued work penalty multiplier']]],
-            [new Adw.PreferencesGroup({title: 'Habit score'}), [
-                ['score-days', 'Active days in the score'], ['seated-repeat', 'Further seated minutes per miss'],
-                ['stand-repeat', 'Further standing minutes per miss'], ['input-repeat', 'Further input minutes per miss']]],
+            [new Adw.PreferencesGroup({title: 'Habit score', description:
+                'In red, a penalty counts halfway and at the end of this window; then the timer starts a new round.'}), [
+                ['score-days', 'Active days in the score'], ['red-window', 'Red warning window']]],
         ];
         for (const [group, rows] of groups) {
             if (group !== desk) page.add(group);

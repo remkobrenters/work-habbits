@@ -15,6 +15,8 @@ try {
     assert(settings.get_string('desk-mode') === 'manual', 'New installations never connect to a desk');
     assert(settings.get_string('desk-device') === '', 'No personal device is distributed');
     assert(preferencesProblem(preferencesOf(settings)) === null, 'Defaults are internally consistent');
+    assert(settings.get_uint('red-window') === 10 && settings.get_uint('seated-grace') === 2, 'Bounded red window defaults');
+    assert(!settings.settings_schema.has_key('seated-repeat'), 'Unbounded miss intervals are gone');
     const original = {...SETTINGS};
     configure(preferencesOf(settings));
     assert(JSON.stringify(SETTINGS) === JSON.stringify(original), 'Schema and logic defaults agree');

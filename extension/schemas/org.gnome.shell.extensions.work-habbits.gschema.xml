@@ -8,7 +8,7 @@
     </key>
     <key name="seated-grace" type="u">
       <range min="1" max="120" />
-      <default>5</default>
+      <default>2</default>
       <summary>Further seated minutes before the stand reminder turns red</summary>
     </key>
     <key name="stand-required" type="u">
@@ -18,7 +18,7 @@
     </key>
     <key name="stand-grace" type="u">
       <range min="1" max="120" />
-      <default>5</default>
+      <default>2</default>
       <summary>Minutes after the stand to sit down again before red</summary>
     </key>
     <key name="input-due" type="u">
@@ -76,20 +76,10 @@
         <choice value="away" />
       </choices>
     </key>
-    <key name="seated-repeat" type="u">
-      <range min="1" max="240" />
-      <default>30</default>
-      <summary>Further seated minutes in red per missed reminder</summary>
-    </key>
-    <key name="stand-repeat" type="u">
-      <range min="1" max="240" />
-      <default>15</default>
-      <summary>Further standing minutes in red per missed reminder</summary>
-    </key>
-    <key name="input-repeat" type="u">
-      <range min="1" max="240" />
-      <default>15</default>
-      <summary>Further input minutes in red per missed reminder</summary>
+    <key name="red-window" type="u">
+      <range min="2" max="60" />
+      <default>10</default>
+      <summary>Minutes in red: a penalty halfway, another at the end, then the timer resets</summary>
     </key>
     <key name="score-days" type="u">
       <range min="1" max="365" />
