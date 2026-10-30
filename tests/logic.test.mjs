@@ -334,3 +334,30 @@ test('shrinking the red window mid-round charges at most two, then resets', () =
     tick(model, {}, {...SETTINGS, redWindow: 60});
     assert.deepEqual([model.missed, model.seated], [2, 0]);
 });
+
+test('gauges fill toward the change, count down to the next state and blink only when due and active', () => {
+    const model = new WellnessModel({seated: 1800, input: 750, lastInputWallMs: now});
+    tick(model, {dt: 0});
+    const view = (overrides = {}) => model.gauges({desk: true, input: true, idleSeconds: 0, handsIdle: 0, ...overrides});
+    assert.deepEqual(view().posture, {color: 'green', blink: null, fraction: 0.25, seconds: 5400});
+    assert.deepEqual(view().hands, {color: 'green', blink: null, fraction: 0.5, seconds: 750});
+    model.seated = SETTINGS.seatedDue + 30;
+    assert.deepEqual(view().posture, {color: 'orange', blink: 'slow', fraction: 1, seconds: 90});
+    model.seated = SETTINGS.seatedLate + 60;
+    assert.deepEqual(view().posture, {color: 'red', blink: 'fast', fraction: 1, seconds: SETTINGS.redWindow / 2 - 60});
+    model.seated = SETTINGS.seatedLate + SETTINGS.redWindow / 2 + 10;
+    assert.equal(view().posture.seconds, SETTINGS.redWindow / 2 - 10);
+    assert.equal(view({idleSeconds: SETTINGS.postureActiveWindow}).posture.blink, null);
+    model.snooze(now);
+    assert.deepEqual(view().posture, {color: 'orange', blink: null, fraction: 1, seconds: SETTINGS.seatedSnooze});
+    model.wallMs = now + SETTINGS.seatedSnooze * 1000;
+    assert.deepEqual(view().posture, {color: 'red', blink: 'fast', fraction: 1, seconds: SETTINGS.redWindow / 2});
+    model.input = SETTINGS.inputDue;
+    assert.deepEqual(view({handsIdle: 30}).hands, {color: 'green', blink: null, fraction: 1, seconds: 90});
+    assert.deepEqual(view({desk: false, input: false}),
+        {posture: {color: 'gray', blink: null, fraction: 0, seconds: null}, hands: {color: 'gray', blink: null, fraction: 0, seconds: null}});
+    const standing = new WellnessModel({standingRun: 300});
+    tick(standing, {position: 'standing', dt: 0});
+    assert.deepEqual(standing.gauges({desk: true, input: false, idleSeconds: 0, handsIdle: 0}).posture,
+        {color: 'green', blink: null, fraction: 0.25, seconds: 900});
+});

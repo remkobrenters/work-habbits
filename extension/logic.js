@@ -260,6 +260,40 @@ export class WellnessModel {
             : this._snoozeColor('input') ?? color(this.input, cfg.inputDue, cfg.inputLate);
     }
 
+    // Time until a snoozed reminder runs out, or until the next penalty of its red window.
+    snoozeSeconds(name, cfg = SETTINGS) {
+        const snooze = this.snoozes[name];
+        if (this.snoozeStates()[name] === 'snoozed') return (snooze.until - this.wallMs) / 1000;
+        const half = cfg.redWindow / 2;
+        return snooze.grace < half ? half - snooze.grace : cfg.redWindow - snooze.grace;
+    }
+
+    // Per panel item: colour, blink, bar fill toward the change and seconds until the next state.
+    gauges({desk, input, idleSeconds, handsIdle}, cfg = SETTINGS) {
+        const gray = {color: 'gray', blink: null, fraction: 0, seconds: null};
+        const gauge = (name, color, active) => {
+            const value = this[VALUE[name]];
+            const due = {seated: cfg.seatedDue, stand: cfg.standRequired, input: cfg.inputDue}[name];
+            const late = cfg[LATE[name]];
+            const half = late + cfg.redWindow / 2;
+            const seconds = this.snoozes[name] ? this.snoozeSeconds(name, cfg)
+                : color === 'green' ? due - value : color === 'orange' ? late - value
+                    : value < half ? half - value : late + cfg.redWindow - value;
+            const blink = !active || this.snoozeStates()[name] === 'snoozed' ? null
+                : {orange: 'slow', red: 'fast'}[color] ?? null;
+            return {color, blink, fraction: color === 'green' ? Math.min(1, value / due) : 1, seconds};
+        };
+        const posture = !desk || this.lastPosition === 'unknown' ? gray
+            : gauge(this.lastPosition === 'sitting' ? 'seated' : 'stand', this.deskColor(true, cfg),
+                idleSeconds < cfg.postureActiveWindow);
+        const resting = handsIdle >= cfg.inputActiveWindow;
+        const hands = !input ? gray : resting
+            ? {color: this.inputColor(true, handsIdle, cfg), blink: null, fraction: Math.min(1, this.input / cfg.inputDue),
+                seconds: this.input > 0 ? Math.max(0, cfg.inputResetIdle - handsIdle) : cfg.inputDue}
+            : gauge('input', this.inputColor(true, handsIdle, cfg), true);
+        return {posture, hands};
+    }
+
     reminderUrgency({desk, input}, cfg = SETTINGS) {
         const states = this.snoozeStates();
         desk &&= states[this.lastPosition === 'sitting' ? 'seated' : 'stand'] !== 'snoozed';
