@@ -63,6 +63,11 @@
       <default>3</default>
       <summary>Bundled reminder sound</summary>
     </key>
+    <key name="sound-volume" type="u">
+      <range min="0" max="100" />
+      <default>70</default>
+      <summary>Reminder sound volume in percent; 0 is silent</summary>
+    </key>
     <key name="sound-repeat" type="u">
       <range min="0" max="60" />
       <default>15</default>

@@ -35,9 +35,14 @@ export default class WorkHabbitsPreferences extends ExtensionPreferences {
         });
         const play = new Gtk.Button({icon_name: 'media-playback-start-symbolic', tooltip_text: 'Play',
             valign: Gtk.Align.CENTER, css_classes: ['flat']});
-        play.connect('clicked', () => preview.play(settings.get_uint('sound-effect')));
+        play.connect('clicked', () => preview.play(settings.get_uint('sound-effect'), settings.get_uint('sound-volume')));
         effect.add_suffix(play);
         audio.add(effect);
+        const volume = new Adw.SpinRow({title: 'Volume (%)',
+            adjustment: new Gtk.Adjustment({lower: 0, upper: 100, step_increment: 5, page_increment: 10,
+                value: settings.get_uint('sound-volume')})});
+        volume.connect('notify::value', () => settings.set_uint('sound-volume', Math.round(volume.value)));
+        audio.add(volume);
         const repeatIndex = SOUND_REPEATS.findIndex(option => option.seconds === settings.get_uint('sound-repeat'));
         const repeat = new Adw.ComboRow({title: 'Repeat while red',
             model: Gtk.StringList.new(SOUND_REPEATS.map(option => option.name)),

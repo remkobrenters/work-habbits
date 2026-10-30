@@ -88,11 +88,11 @@ function buildApp({seated = SETTINGS.seatedDue, input = SETTINGS.inputDue} = {})
     const menu = {box: new Actor(), isOpen: true, items: [], addMenuItem(item) { this.items.push(item); }};
     app._settings = {get_string: () => 'manual',
         get_boolean: key => ({'panel-icons': state.icons, 'notifications-enabled': true, 'sound-enabled': true})[key] ?? false,
-        get_uint: key => ({'sound-effect': 3, 'sound-repeat': 15})[key]};
+        get_uint: key => ({'sound-effect': 3, 'sound-repeat': 15, 'sound-volume': 70})[key]};
     app._indicator = {menu};
     app._postureIcon = 'standing-icon';
     app._chimes = new ChimeSchedule();
-    app._sound = {play: effect => played.push(effect), stop: () => state.stops++};
+    app._sound = {play: (effect, volume) => played.push([effect, volume]), stop: () => state.stops++};
     app._notificationSettings = {get_boolean: key => key === 'show-banners' && state.banners};
     app._soundError = '';
     app._buildPanel(new Actor());
@@ -177,9 +177,9 @@ test('dashboard keeps colored charts, posture percentages and score while coexis
     assert.equal(app._postureCard.hint.text, 'Too late: penalty in 5:00');
     assert.equal(app._handsCard.hint.text, 'Too late: penalty in 5:00');
     assert.deepEqual(notified, [], 'Reminders never raise desktop banners');
-    assert.deepEqual(played, [3], 'Red plays the chosen sound once on entry');
+    assert.deepEqual(played, [[3, 70]], 'Red plays the chosen sound at the chosen volume once on entry');
     app._paint(true, 0, 'manual', true);
-    assert.deepEqual(played, [3], 'No repeat before the interval');
+    assert.deepEqual(played, [[3, 70]], 'No repeat before the interval');
     app._paint(false, 0, 'manual', false);
     assert.equal(posture.time.text, '—');
     assert.equal(hands.bar._level.color, '#9ca3af');
@@ -192,7 +192,9 @@ test('dashboard keeps colored charts, posture percentages and score while coexis
 test('Do Not Disturb mutes the red sound and a missing player is reported, not thrown', () => {
     const sound = moduleAt(new URL('../extension/sound.js', import.meta.url).href).namespace;
     const errors = [];
-    new sound.Sound('/ext', message => errors.push(message)).play(3);
+    new sound.Sound('/ext', message => errors.push(message)).play(3, 0);
+    assert.deepEqual(errors, [], 'Volume 0 is silent and starts nothing');
+    new sound.Sound('/ext', message => errors.push(message)).play(3, 70);
     assert.match(errors[0], /gstreamer1\.0-plugins-base-apps/);
     const {app, state, played} = buildApp({seated: SETTINGS.seatedLate});
     state.banners = false;
@@ -201,10 +203,10 @@ test('Do Not Disturb mutes the red sound and a missing player is reported, not t
     assert.ok(state.stops > 0, 'A sound already playing is cut off');
     state.banners = true;
     app._paint(true, 0, 'manual', true);
-    assert.deepEqual(played, [3], 'Leaving Do Not Disturb while red plays at once');
+    assert.deepEqual(played, [[3, 70]], 'Leaving Do Not Disturb while red plays at once');
     app._paint(true, SETTINGS.postureActiveWindow, 'manual', true);
     app._paint(true, 0, 'manual', true);
-    assert.deepEqual(played, [3], 'Coming back from idle does not restart the sound');
+    assert.deepEqual(played, [[3, 70]], 'Coming back from idle does not restart the sound');
 });
 
 test('Wayland never launches the X11 input helper', () => {

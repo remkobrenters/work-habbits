@@ -540,7 +540,7 @@ export default class WorkHabbitsExtension extends Extension {
         const allowed = this._settings.get_boolean('sound-enabled') && this._notificationSettings.get_boolean('show-banners');
         if (this._chimes.update({red, allowed, repeatSeconds: this._settings.get_uint('sound-repeat'),
             nowSeconds: GLib.get_monotonic_time() / 1e6}))
-            this._sound.play(this._settings.get_uint('sound-effect'));
+            this._sound.play(this._settings.get_uint('sound-effect'), this._settings.get_uint('sound-volume'));
         else if (!allowed || !red.some(reminder => reminder.active))
             this._sound.stop();
         const tooLate = (gauge, name) => gauge.color === 'red' && !model.snoozes[name]

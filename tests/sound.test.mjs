@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {ChimeSchedule, SOUND_EFFECTS, SOUND_REPEATS, soundFile} from '../extension/sound-options.js';
+import {ChimeSchedule, SOUND_EFFECTS, SOUND_REPEATS, playerArgs, soundFile} from '../extension/sound-options.js';
 
 // Each step: [seconds, red reminders as {name: active}, allowed, repeat seconds].
 const run = (schedule, steps) => steps.map(([nowSeconds, red, allowed = true, repeatSeconds = 15]) =>
@@ -37,4 +37,11 @@ test('sound choices and files', () => {
     assert.deepEqual(SOUND_REPEATS.map(option => option.seconds), [0, 15, 30, 60]);
     assert.equal(soundFile(1, '/ext'), '/ext/sounds/notification_1.mp3');
     assert.equal(soundFile(9, '/ext'), '/ext/sounds/notification_3.mp3');
+});
+
+test('the player gets the configured volume as a soft volume', () => {
+    assert.deepEqual(playerArgs('/usr/bin/gst-play-1.0', 'file:///ext/sounds/notification_3.mp3', 70),
+        ['/usr/bin/gst-play-1.0', '--quiet', '--no-interactive', '--flags=audio+soft-volume', '--volume=0.7',
+            'file:///ext/sounds/notification_3.mp3']);
+    assert.equal(playerArgs('gst-play-1.0', 'file:///x.mp3', 100)[4], '--volume=1');
 });

@@ -1,6 +1,6 @@
 import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
-import {soundFile} from './sound-options.js';
+import {playerArgs, soundFile} from './sound-options.js';
 
 // Plays a bundled reminder sound with gst-play-1.0. Problems are reported, never thrown.
 export class Sound {
@@ -11,7 +11,9 @@ export class Sound {
         this._timer = null;
     }
 
-    play(effect) {
+    // Volume is a percentage; 0 is silent and starts nothing.
+    play(effect, volume) {
+        if (!volume) return;
         try {
             const player = GLib.find_program_in_path('gst-play-1.0');
             if (!player) throw new Error('Reminder sounds need gstreamer1.0-plugins-base-apps.');
@@ -19,9 +21,8 @@ export class Sound {
             if (!GLib.file_test(path, GLib.FileTest.IS_REGULAR))
                 throw new Error('Reminder sound file is missing; run ./install.sh again.');
             this.stop();
-            const process = Gio.Subprocess.new([player, '--quiet', '--no-interactive', '--flags=audio',
-                Gio.File.new_for_path(path).get_uri()],
-            Gio.SubprocessFlags.STDOUT_SILENCE | Gio.SubprocessFlags.STDERR_SILENCE);
+            const process = Gio.Subprocess.new(playerArgs(player, Gio.File.new_for_path(path).get_uri(), volume),
+                Gio.SubprocessFlags.STDOUT_SILENCE | Gio.SubprocessFlags.STDERR_SILENCE);
             this._process = process;
             this._timer = GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, 15, () => {
                 this._timer = null;

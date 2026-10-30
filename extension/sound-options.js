@@ -17,6 +17,11 @@ export function soundFile(effect, extensionPath) {
     return `${extensionPath}/sounds/${selected.file}`;
 }
 
+// gst-play-1.0 arguments; volume is a percentage applied as a soft volume.
+export function playerArgs(player, uri, volume) {
+    return [player, '--quiet', '--no-interactive', '--flags=audio+soft-volume', `--volume=${volume / 100}`, uri];
+}
+
 // Chimes when a reminder turns red, then once per repeat interval while the user is active for a red
 // reminder. A pause keeps the episode: coming back waits for the interval and never repeats "once".
 export class ChimeSchedule {
