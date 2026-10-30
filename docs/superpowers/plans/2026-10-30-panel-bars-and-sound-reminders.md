@@ -471,7 +471,7 @@ git commit -m "Drop reminder banners and describe penalties and snoozes in the m
 | `extension/sounds/notification_3.mp3` | New Notification 067 | Universfield | `https://pixabay.com/sound-effects/film-special-effects-new-notification-067-138695/` | `f00ce1645f1ce40f7e5d1b71306e68bfe4bd135124ed5f0594cc508fe7812d92` |
 
 **Rules:**
-- **`THIRD_PARTY_NOTICES.md`** mirrors `/home/remko/Development/ai-monitor/THIRD_PARTY_NOTICES.md`:
+- **`THIRD_PARTY_NOTICES.md`** mirrors ai-monitor's `THIRD_PARTY_NOTICES.md` (https://github.com/remkobrenters/ai-monitor):
   - The MIT license covers the code; the MP3s are under the Pixabay Content License.
   - "Thanks to **Universfield** and **SupremeTyLewisS** for sharing these sounds on Pixabay."
   - The table above, without the hash column.
@@ -535,7 +535,7 @@ git commit -m "Bundle three Pixabay notification sounds with credits and provena
   - In `sound.js`: `class Sound { constructor(extensionPath: string, onError: (message: string) => void); play(effect: number); stop(); destroy() }`.
 
 **Rules:**
-- **`Sound.play`** follows `/home/remko/Development/ai-monitor/extension/sound.js`, with no volume and no custom file:
+- **`Sound.play`** follows ai-monitor's `extension/sound.js`, with no volume and no custom file:
   - Check `GLib.find_program_in_path('gst-play-1.0')` first. If it's missing, call `onError('Reminder sounds need gstreamer1.0-plugins-base-apps.')`.
   - Then check the file. If it isn't a regular file: `onError('Reminder sound file is missing; run ./install.sh again.')`.
   - Spawn `[player, '--quiet', '--no-interactive', '--flags=audio', uri]` with stdout and stderr silenced, and kill it after 15 s.

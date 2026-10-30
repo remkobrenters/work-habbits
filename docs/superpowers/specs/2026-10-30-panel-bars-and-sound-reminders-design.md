@@ -6,7 +6,7 @@ Decisions marked **(Claude's call)** were made by Claude and haven't been confir
 
 ## Why
 
-The top-bar indicator is hard to read. It shows one countdown, and an arrow (`◂`/`▸`) points at the posture or keyboard icon to say which timer it belongs to. The owner's other GNOME extension, ai-monitor (`~/Development/ai-monitor`), uses a calmer pattern: a label with a thin bar underneath and a small value beside it. The owner wants the same here, with both timers always visible.
+The top-bar indicator is hard to read. It shows one countdown, and an arrow (`◂`/`▸`) points at the posture or keyboard icon to say which timer it belongs to. The owner's other GNOME extension, ai-monitor (https://github.com/remkobrenters/ai-monitor), uses a calmer pattern: a label with a thin bar underneath and a small value beside it. The owner wants the same here, with both timers always visible.
 
 The reminders also need a clearer escalation without desktop banners. Orange is a silent warning. Red adds a sound that can repeat. After two penalties, the round gives up and the timer resets, so nobody gets stuck in an endless penalty loop.
 
