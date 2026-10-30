@@ -17,18 +17,29 @@ export function soundFile(effect, extensionPath) {
     return `${extensionPath}/sounds/${selected.file}`;
 }
 
-// Chimes when a reminder turns red while sound is allowed, then once per repeat interval.
+// Chimes when a reminder turns red, then once per repeat interval while the user is active for a red
+// reminder. A pause keeps the episode: coming back waits for the interval and never repeats "once".
 export class ChimeSchedule {
     constructor() {
-        this._armed = false;
+        this._red = new Set();
+        this._allowed = false;
+        this._pending = false;
+        this._chimed = false;
         this._last = -Infinity;
     }
 
     update({red, allowed, repeatSeconds, nowSeconds}) {
-        const armed = red && allowed;
-        const due = armed && (!this._armed || (repeatSeconds > 0 && nowSeconds - this._last >= repeatSeconds));
-        this._armed = armed;
-        if (due) this._last = nowSeconds;
-        return due;
+        const names = new Set(red.map(reminder => reminder.name));
+        if (!names.size) this._pending = this._chimed = false;
+        if (red.some(reminder => !this._red.has(reminder.name))) this._pending = true;
+        if (allowed && !this._allowed && (!this._chimed || repeatSeconds > 0)) this._pending = true;
+        this._red = names;
+        this._allowed = allowed;
+        if (!allowed || !red.some(reminder => reminder.active)) return false;
+        if (!this._pending && (!repeatSeconds || nowSeconds - this._last < repeatSeconds)) return false;
+        this._pending = false;
+        this._chimed = true;
+        this._last = nowSeconds;
+        return true;
     }
 }

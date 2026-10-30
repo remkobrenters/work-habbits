@@ -320,3 +320,17 @@ test('gauges fill toward the change, count down to the next state and blink only
     assert.deepEqual(standing.gauges({desk: true, input: false, idleSeconds: 0, handsIdle: 0}).posture,
         {color: 'green', blink: null, fraction: 0.25, seconds: 900});
 });
+
+test('red reminders follow the round, not idle pauses, and leave out snoozed ones', () => {
+    const model = new WellnessModel({seated: SETTINGS.seatedLate, input: SETTINGS.inputLate, lastInputWallMs: now});
+    tick(model, {dt: 0});
+    const red = (overrides = {}) => model.redReminders({active: true, idleSeconds: 0, handsIdle: 0, ...overrides});
+    assert.deepEqual(red(), [{name: 'seated', active: true}, {name: 'input', active: true}]);
+    assert.deepEqual(red({idleSeconds: SETTINGS.postureActiveWindow, handsIdle: 12}),
+        [{name: 'seated', active: false}, {name: 'input', active: false}], 'A pause keeps the round red but inactive');
+    assert.deepEqual(red({active: false}).map(reminder => reminder.active), [false, false]);
+    model.snooze(now);
+    assert.deepEqual(red().map(reminder => reminder.name), [], 'Snoozed reminders are silent');
+    model.wallMs = now + SETTINGS.inputSnooze * 1000;
+    assert.deepEqual(red().map(reminder => reminder.name), ['input'], 'A run-out snooze is red again');
+});

@@ -82,7 +82,7 @@ await extension.link((specifier, parent) => moduleAt(specifier in dependencies
 await extension.evaluate();
 
 function buildApp({seated = SETTINGS.seatedDue, input = SETTINGS.inputDue} = {}) {
-    const state = {icons: false, banners: true};
+    const state = {icons: false, banners: true, stops: 0};
     const played = [];
     const app = new extension.namespace.default();
     const menu = {box: new Actor(), isOpen: true, items: [], addMenuItem(item) { this.items.push(item); }};
@@ -92,7 +92,7 @@ function buildApp({seated = SETTINGS.seatedDue, input = SETTINGS.inputDue} = {})
     app._indicator = {menu};
     app._postureIcon = 'standing-icon';
     app._chimes = new ChimeSchedule();
-    app._sound = {play: effect => played.push(effect)};
+    app._sound = {play: effect => played.push(effect), stop: () => state.stops++};
     app._notificationSettings = {get_boolean: key => key === 'show-banners' && state.banners};
     app._soundError = '';
     app._buildPanel(new Actor());
@@ -198,9 +198,13 @@ test('Do Not Disturb mutes the red sound and a missing player is reported, not t
     state.banners = false;
     app._paint(true, 0, 'manual', true);
     assert.deepEqual(played, [], 'Do Not Disturb (show-banners off) mutes the sound');
+    assert.ok(state.stops > 0, 'A sound already playing is cut off');
     state.banners = true;
     app._paint(true, 0, 'manual', true);
     assert.deepEqual(played, [3], 'Leaving Do Not Disturb while red plays at once');
+    app._paint(true, SETTINGS.postureActiveWindow, 'manual', true);
+    app._paint(true, 0, 'manual', true);
+    assert.deepEqual(played, [3], 'Coming back from idle does not restart the sound');
 });
 
 test('Wayland never launches the X11 input helper', () => {

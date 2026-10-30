@@ -2,21 +2,34 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {ChimeSchedule, SOUND_EFFECTS, SOUND_REPEATS, soundFile} from '../extension/sound-options.js';
 
+// Each step: [seconds, red reminders as {name: active}, allowed, repeat seconds].
 const run = (schedule, steps) => steps.map(([nowSeconds, red, allowed = true, repeatSeconds = 15]) =>
-    schedule.update({red, allowed, repeatSeconds, nowSeconds}));
+    schedule.update({red: Object.entries(red).map(([name, active]) => ({name, active})), allowed, repeatSeconds, nowSeconds}));
+const typing = {input: true};
+const paused = {input: false};
 
 test('chimes on entering red, then every interval, and again at once after leaving red', () => {
-    assert.deepEqual(run(new ChimeSchedule(), [[0, false], [1, true], [2, true], [15, true], [16, true], [30, true],
-        [32, false], [33, true]]), [false, true, false, false, true, false, false, true]);
+    assert.deepEqual(run(new ChimeSchedule(), [[0, {}], [1, typing], [2, typing], [15, typing], [16, typing], [30, typing],
+        [32, {}], [33, typing]]), [false, true, false, false, true, false, false, true]);
 });
 
-test('once means only on entering red', () => {
-    assert.deepEqual(run(new ChimeSchedule(), [[0, true, true, 0], [100, true, true, 0]]), [true, false]);
+test('a typing pause in red does not restart the sound: once stays once and intervals hold', () => {
+    const burst = (start, repeat) => [[start, typing, true, repeat], [start + 12, paused, true, repeat],
+        [start + 20, typing, true, repeat]];
+    assert.deepEqual(run(new ChimeSchedule(), [...burst(0, 0), ...burst(30, 0), ...burst(60, 0)]),
+        [true, false, false, false, false, false, false, false, false]);
+    assert.deepEqual(run(new ChimeSchedule(), [...burst(0, 60), ...burst(30, 60), ...burst(60, 60)]),
+        [true, false, false, false, false, false, true, false, false]);
 });
 
-test('muted while not allowed; becoming allowed in red chimes at once', () => {
-    assert.deepEqual(run(new ChimeSchedule(), [[0, true, false], [20, true, false], [21, true, true], [22, true, false]]),
-        [false, false, true, false]);
+test('once means only on entering red; another reminder turning red chimes at once', () => {
+    assert.deepEqual(run(new ChimeSchedule(), [[0, typing, true, 0], [100, typing, true, 0],
+        [101, {input: true, seated: true}, true, 0]]), [true, false, true]);
+});
+
+test('muted while not allowed or while nobody is active; turning sound back on chimes at once', () => {
+    assert.deepEqual(run(new ChimeSchedule(), [[0, typing, false], [20, typing, false], [21, typing, true], [22, typing, false],
+        [23, paused, true]]), [false, false, true, false, false]);
 });
 
 test('sound choices and files', () => {

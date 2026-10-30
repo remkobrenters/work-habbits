@@ -536,12 +536,13 @@ export default class WorkHabbitsExtension extends Extension {
         const inputColor = model.inputColor(inputAvailable, handsIdle);
         const gauges = model.gauges({desk: deskAvailable, input: inputAvailable, idleSeconds, handsIdle});
         this._paintGauges(gauges);
-        const red = gauges.posture.blink === 'fast' || gauges.hands.blink === 'fast';
-        const allowed = active && this._settings.get_boolean('sound-enabled') &&
-            this._notificationSettings.get_boolean('show-banners');
+        const red = model.redReminders({active, idleSeconds, handsIdle});
+        const allowed = this._settings.get_boolean('sound-enabled') && this._notificationSettings.get_boolean('show-banners');
         if (this._chimes.update({red, allowed, repeatSeconds: this._settings.get_uint('sound-repeat'),
             nowSeconds: GLib.get_monotonic_time() / 1e6}))
             this._sound.play(this._settings.get_uint('sound-effect'));
+        else if (!allowed || !red.some(reminder => reminder.active))
+            this._sound.stop();
         const tooLate = (gauge, name) => gauge.color === 'red' && !model.snoozes[name]
             ? `Too late: penalty in ${formatTimer(gauge.seconds)}` : '';
         const resting = ['standing', 'away'].includes(this._position);

@@ -288,6 +288,19 @@ export class WellnessModel {
         return {posture, hands};
     }
 
+    // Reminders whose round is red (a run-out snooze included), and whether the user is active for each.
+    redReminders({active, idleSeconds, handsIdle}, cfg = SETTINGS) {
+        const red = name => this.snoozes[name] ? this.snoozeStates()[name] === 'over'
+            : this[VALUE[name]] >= cfg[LATE[name]];
+        const reminders = [];
+        if (this.lastPosition !== 'unknown') {
+            const name = this.lastPosition === 'sitting' ? 'seated' : 'stand';
+            if (red(name)) reminders.push({name, active: active && idleSeconds < cfg.postureActiveWindow});
+        }
+        if (red('input')) reminders.push({name: 'input', active: active && handsIdle < cfg.inputActiveWindow});
+        return reminders;
+    }
+
     serialize(date) {
         const state = {date, standComplete: this.standComplete, heeded: this.heeded, missed: this.missed};
         for (const key of ['seated', 'standingRun', 'input', 'todaySitting', 'todayStanding',
