@@ -12,6 +12,7 @@ FILES = [
     'CONTRIBUTING.md',
     'SECURITY.md',
     'LICENSE',
+    'THIRD_PARTY_NOTICES.md',
     'Makefile',
     'pyproject.toml',
     'requirements.txt',

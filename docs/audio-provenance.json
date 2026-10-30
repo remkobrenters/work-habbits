@@ -1,0 +1,20 @@
+[
+  {
+    "file": "extension/sounds/notification_1.mp3",
+    "source": "https://pixabay.com/sound-effects/technology-new-notification-065-494546/",
+    "license": "Pixabay Content License",
+    "sha256": "54630ad061a7ba9fe381439d555e18a89c266c455506811681bb2067b8ecc7d2"
+  },
+  {
+    "file": "extension/sounds/notification_2.mp3",
+    "source": "https://cdn.pixabay.com/download/audio/2022/01/07/audio_455a3917eb.mp3?filename=supremetylewiss-message-13716.mp3",
+    "license": "Pixabay Content License",
+    "sha256": "3534dd37fcb4ea22075a7e6057927120c936d7f0d6a176ecdf84e2a4479fe48d"
+  },
+  {
+    "file": "extension/sounds/notification_3.mp3",
+    "source": "https://pixabay.com/sound-effects/film-special-effects-new-notification-067-138695/",
+    "license": "Pixabay Content License",
+    "sha256": "f00ce1645f1ce40f7e5d1b71306e68bfe4bd135124ed5f0594cc508fe7812d92"
+  }
+]

@@ -182,4 +182,4 @@ Owner-only backups of both applications' original records, the import plan, and 
 
 [CONTRIBUTING.md](CONTRIBUTING.md) covers checks, screenshots, and GitHub setup. [SECURITY.md](SECURITY.md) covers vulnerability reporting. GitHub checks code style, security lint, shell/JavaScript syntax, schemas, behavior, and dependency advisories on pushes/PRs and weekly. Dependabot proposes weekly updates. `make dist` creates a source archive that excludes local configuration and caches.
 
-Licensed under [MIT](LICENSE).
+Licensed under [MIT](LICENSE). Bundled notification sounds are third-party Pixabay content; see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
