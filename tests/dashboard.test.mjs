@@ -4,6 +4,7 @@ import {readFileSync} from 'node:fs';
 import {SourceTextModule, SyntheticModule} from 'node:vm';
 import {WellnessModel, SETTINGS} from '../extension/logic.js';
 import {DailyHistory} from '../extension/history.js';
+import {ChimeSchedule} from '../extension/sound-options.js';
 
 // GNOME actors and drawing are external I/O. Run the real extension UI methods
 // against a small actor tree without changing the desktop or needing a display.
@@ -49,7 +50,8 @@ const dependencies = {
     'gi://St': {BoxLayout: Actor, Label: Actor, Icon: Actor, Widget: Actor, Button: Actor, DrawingArea: Actor},
     'gi://GLib': {get_user_name: () => 'tester', get_monotonic_time: () => 0,
         DateTime: {new_now_local: () => ({format: () => '2026-10-29'})},
-        timeout_add: () => 1, Source: {remove() {}}, PRIORITY_DEFAULT: 0},
+        timeout_add: () => 1, Source: {remove() {}}, PRIORITY_DEFAULT: 0,
+        find_program_in_path: () => null, path_is_absolute: () => true, file_test: () => true, FileTest: {IS_REGULAR: 0}},
     'gi://Gio': {},
     'gi://Meta': {is_wayland_compositor: () => true},
     'resource:///org/gnome/shell/ui/main.js': {notify: (...args) => notified.push(args)},
@@ -89,6 +91,10 @@ function buildApp({seated = SETTINGS.seatedDue, input = SETTINGS.inputDue} = {})
         get_uint: key => ({'sound-effect': 3, 'sound-repeat': 15})[key]};
     app._indicator = {menu};
     app._postureIcon = 'standing-icon';
+    app._chimes = new ChimeSchedule();
+    app._sound = {play: effect => played.push(effect)};
+    app._notificationSettings = {get_boolean: key => key === 'show-banners' && state.banners};
+    app._soundError = '';
     app._buildPanel(new Actor());
     app._buildMenu(menu);
     app._session = {Name: 'tester', Type: 'x11', Class: 'user', Remote: false};
@@ -105,8 +111,9 @@ function buildApp({seated = SETTINGS.seatedDue, input = SETTINGS.inputDue} = {})
 }
 
 test('dashboard keeps colored charts, posture percentages and score while coexisting with unrelated extensions', () => {
-    const {app, state} = buildApp();
+    const {app, state, played} = buildApp();
     app._paint(true, 0, 'manual', true);
+    assert.deepEqual(played, [], 'Orange is silent');
     assert.equal(app._historyItem.visible, false);
     assert.ok(app._metricRows.awaySeconds.every(actor => !actor.visible));
     const orange = '#f1ac43';
@@ -170,6 +177,9 @@ test('dashboard keeps colored charts, posture percentages and score while coexis
     assert.equal(app._postureCard.hint.text, 'Too late: penalty in 5:00');
     assert.equal(app._handsCard.hint.text, 'Too late: penalty in 5:00');
     assert.deepEqual(notified, [], 'Reminders never raise desktop banners');
+    assert.deepEqual(played, [3], 'Red plays the chosen sound once on entry');
+    app._paint(true, 0, 'manual', true);
+    assert.deepEqual(played, [3], 'No repeat before the interval');
     app._paint(false, 0, 'manual', false);
     assert.equal(posture.time.text, '—');
     assert.equal(hands.bar._level.color, '#9ca3af');
@@ -177,6 +187,20 @@ test('dashboard keeps colored charts, posture percentages and score while coexis
     assert.equal(app._handsCard.meter._level.color, '#9ca3af');
     assert.equal(app._deskButton.visible, false);
     assert.equal(app._pause, undefined, 'Tracking is configured in Settings');
+});
+
+test('Do Not Disturb mutes the red sound and a missing player is reported, not thrown', () => {
+    const sound = moduleAt(new URL('../extension/sound.js', import.meta.url).href).namespace;
+    const errors = [];
+    new sound.Sound('/ext', message => errors.push(message)).play(3);
+    assert.match(errors[0], /gstreamer1\.0-plugins-base-apps/);
+    const {app, state, played} = buildApp({seated: SETTINGS.seatedLate});
+    state.banners = false;
+    app._paint(true, 0, 'manual', true);
+    assert.deepEqual(played, [], 'Do Not Disturb (show-banners off) mutes the sound');
+    state.banners = true;
+    app._paint(true, 0, 'manual', true);
+    assert.deepEqual(played, [3], 'Leaving Do Not Disturb while red plays at once');
 });
 
 test('Wayland never launches the X11 input helper', () => {

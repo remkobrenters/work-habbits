@@ -18,6 +18,8 @@ try {
     assert(settings.get_uint('red-window') === 10 && settings.get_uint('seated-grace') === 2, 'Bounded red window defaults');
     assert(!settings.settings_schema.has_key('seated-repeat'), 'Unbounded miss intervals are gone');
     assert(!settings.settings_schema.has_key('notifications-enabled'), 'Reminder banners are gone');
+    assert(settings.get_boolean('sound-enabled') && settings.get_uint('sound-effect') === 3 &&
+        settings.get_uint('sound-repeat') === 15, 'Sound defaults');
     const original = {...SETTINGS};
     configure(preferencesOf(settings));
     assert(JSON.stringify(SETTINGS) === JSON.stringify(original), 'Schema and logic defaults agree');

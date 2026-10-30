@@ -54,6 +54,20 @@
       <default>false</default>
       <summary>Show posture and keyboard icons in the top bar</summary>
     </key>
+    <key name="sound-enabled" type="b">
+      <default>true</default>
+      <summary>Play a sound while a reminder is red</summary>
+    </key>
+    <key name="sound-effect" type="u">
+      <range min="1" max="3" />
+      <default>3</default>
+      <summary>Bundled reminder sound</summary>
+    </key>
+    <key name="sound-repeat" type="u">
+      <range min="0" max="60" />
+      <default>15</default>
+      <summary>Seconds between repeated sounds while red; 0 plays once</summary>
+    </key>
     <key name="desk-mode" type="s">
       <default>'manual'</default>
       <summary>Desk movement mode</summary>

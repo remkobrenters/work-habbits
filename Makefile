@@ -17,6 +17,7 @@ test:
 	$(PYTHON) -m unittest discover -s tests -v
 	/usr/bin/python3 -m unittest discover -s tests -p test_installer.py -v
 	node tests/logic.test.mjs
+	node tests/sound.test.mjs
 	node --experimental-vm-modules tests/dashboard.test.mjs
 	WORK_HABBITS_TEST_ORIENTATION=1 node --experimental-vm-modules tests/dashboard.test.mjs
 	TZ=Europe/Berlin node tests/history.test.mjs

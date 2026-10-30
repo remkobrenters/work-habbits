@@ -56,7 +56,7 @@ Input counts work independently of Bluetooth availability on Xorg. Pausing **Tra
 Use a terminal in your active local GNOME desktop session, without sudo. On Ubuntu, install prerequisites once:
 
 ```bash
-sudo apt install python3-venv python3-gi gir1.2-adw-1 libglib2.0-bin
+sudo apt install python3-venv python3-gi gir1.2-adw-1 libglib2.0-bin gstreamer1.0-plugins-base-apps
 ```
 
 From the checkout:

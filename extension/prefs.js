@@ -3,6 +3,8 @@ import Gio from 'gi://Gio';
 import Gtk from 'gi://Gtk';
 import {ExtensionPreferences} from 'resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js';
 import {preferencesOf, preferencesProblem} from './logic.js';
+import {SOUND_EFFECTS, SOUND_REPEATS} from './sound-options.js';
+import {Sound} from './sound.js';
 
 export default class WorkHabbitsPreferences extends ExtensionPreferences {
     fillPreferencesWindow(window) {
@@ -17,6 +19,31 @@ export default class WorkHabbitsPreferences extends ExtensionPreferences {
             settings.bind(key, row, 'active', Gio.SettingsBindFlags.DEFAULT);
             general.add(row);
         }
+        const audio = new Adw.PreferencesGroup({title: 'Sound', description:
+            'Orange stays silent. In red a sound plays while you are at the computer. Do Not Disturb mutes it.'});
+        page.add(audio);
+        const sound = new Adw.SwitchRow({title: 'Play a sound when a reminder turns red'});
+        settings.bind('sound-enabled', sound, 'active', Gio.SettingsBindFlags.DEFAULT);
+        audio.add(sound);
+        const effect = new Adw.ComboRow({title: 'Sound', model: Gtk.StringList.new(SOUND_EFFECTS.map(option => option.name)),
+            selected: Math.min(SOUND_EFFECTS.length, Math.max(1, settings.get_uint('sound-effect'))) - 1});
+        effect.connect('notify::selected', () => settings.set_uint('sound-effect', effect.selected + 1));
+        const preview = new Sound(this.path, message => window.add_toast(new Adw.Toast({title: message})));
+        window.connect('close-request', () => {
+            preview.destroy();
+            return false;
+        });
+        const play = new Gtk.Button({icon_name: 'media-playback-start-symbolic', tooltip_text: 'Play',
+            valign: Gtk.Align.CENTER, css_classes: ['flat']});
+        play.connect('clicked', () => preview.play(settings.get_uint('sound-effect')));
+        effect.add_suffix(play);
+        audio.add(effect);
+        const repeatIndex = SOUND_REPEATS.findIndex(option => option.seconds === settings.get_uint('sound-repeat'));
+        const repeat = new Adw.ComboRow({title: 'Repeat while red',
+            model: Gtk.StringList.new(SOUND_REPEATS.map(option => option.name)),
+            selected: repeatIndex < 0 ? SOUND_REPEATS.findIndex(option => option.seconds === 15) : repeatIndex});
+        repeat.connect('notify::selected', () => settings.set_uint('sound-repeat', SOUND_REPEATS[repeat.selected].seconds));
+        audio.add(repeat);
         const desk = new Adw.PreferencesGroup({title: 'Desk', description:
             'Bluetooth: TiMOTION TWD1 / Nordic UART only. Manual: mark sitting or standing yourself. ' +
             'Disabled: use the menu to mark movement breaks with a fixed desk.'});

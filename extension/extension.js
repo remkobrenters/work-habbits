@@ -14,6 +14,8 @@ import {SETTINGS, WellnessModel, isFreshHeartbeat, isLocalDesktop, isLocalSessio
     configure, deskState, preferencesOf} from './logic.js';
 import {dailyRecord, modelState, formatHours, formatCount, formatTimer} from './history.js';
 import {HistoryStore} from './storage.js';
+import {Sound} from './sound.js';
+import {ChimeSchedule} from './sound-options.js';
 
 const COLORS = {green: '#40cb82', orange: '#f1ac43', red: '#f26a66', gray: '#9ca3af'};
 const PERIODS = ['today', 'week', 'month'];
@@ -180,6 +182,7 @@ export default class WorkHabbitsExtension extends Extension {
                 this._socketCancel = new Gio.Cancellable();
             }
             if (key === 'input-break' || key === 'tracking-enabled') this._stopReader();
+            if (key.startsWith('sound-')) this._soundError = '';
             if (key === 'input-break') this._nextReaderAttempt = 0;
             if (key === 'desk-mode') {
                 this._settings.set_string('manual-position', 'sitting');
@@ -202,6 +205,13 @@ export default class WorkHabbitsExtension extends Extension {
         this._inputError = '';
         this._nextReaderAttempt = 0;
         this._socketCancel = new Gio.Cancellable();
+        this._sound = new Sound(this.path, message => {
+            this._soundError = message;
+        });
+        this._soundError = '';
+        this._chimes = new ChimeSchedule();
+        // GNOME's Do Not Disturb turns banners off; it mutes reminder sounds too.
+        this._notificationSettings = new Gio.Settings({schema_id: 'org.gnome.desktop.notifications'});
 
         this._postureIcon = new Gio.FileIcon({file: this.dir.get_child('icons').get_child('standing-symbolic.svg')});
         this._indicator = new PanelMenu.Button(0.0, 'work-habbits', false);
@@ -354,6 +364,9 @@ export default class WorkHabbitsExtension extends Extension {
         this._historyItem = new PopupMenu.PopupMenuItem('', {reactive: false, can_focus: false});
         this._historyItem.visible = false;
         menu.addMenuItem(this._historyItem);
+        this._soundItem = new PopupMenu.PopupMenuItem('', {reactive: false, can_focus: false});
+        this._soundItem.visible = false;
+        menu.addMenuItem(this._soundItem);
     }
 
     // Orange blinks slowly, red fast; the label and time stay steady.
@@ -523,6 +536,12 @@ export default class WorkHabbitsExtension extends Extension {
         const inputColor = model.inputColor(inputAvailable, handsIdle);
         const gauges = model.gauges({desk: deskAvailable, input: inputAvailable, idleSeconds, handsIdle});
         this._paintGauges(gauges);
+        const red = gauges.posture.blink === 'fast' || gauges.hands.blink === 'fast';
+        const allowed = active && this._settings.get_boolean('sound-enabled') &&
+            this._notificationSettings.get_boolean('show-banners');
+        if (this._chimes.update({red, allowed, repeatSeconds: this._settings.get_uint('sound-repeat'),
+            nowSeconds: GLib.get_monotonic_time() / 1e6}))
+            this._sound.play(this._settings.get_uint('sound-effect'));
         const tooLate = (gauge, name) => gauge.color === 'red' && !model.snoozes[name]
             ? `Too late: penalty in ${formatTimer(gauge.seconds)}` : '';
         const resting = ['standing', 'away'].includes(this._position);
@@ -567,6 +586,8 @@ export default class WorkHabbitsExtension extends Extension {
         this._historyItem.visible = Boolean(this._store.error || this._store.warnings.length);
         this._historyItem.label.text = this._store.error ? 'History save failed; will retry'
             : this._store.warnings.length ? 'Unreadable history preserved; see logs' : '';
+        this._soundItem.visible = Boolean(this._soundError);
+        this._soundItem.label.text = this._soundError;
         this._snoozeButton.visible = active && model.snoozable().length > 0;
         const names = {seated: 'Stand', stand: 'Sit', input: 'Hands'};
         const states = model.snoozeStates();
@@ -660,6 +681,10 @@ export default class WorkHabbitsExtension extends Extension {
         this._socketCancel?.cancel();
         this._socketCancel = null;
         this._stopReader();
+        this._sound?.destroy();
+        this._sound = null;
+        this._chimes = null;
+        this._notificationSettings = null;
         this._save();
         if (this._settingsChangedId) this._settings.disconnect(this._settingsChangedId);
         this._settingsChangedId = null;
