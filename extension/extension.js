@@ -88,19 +88,19 @@ class Meter extends St.DrawingArea {
     _init({style_class = 'wh-meter', thickness = 0.5, x_expand = true} = {}) {
         super._init({style_class, x_expand, y_align: Clutter.ActorAlign.CENTER});
         this._thickness = thickness;
-        this._level = {fraction: 0, color: COLORS.gray, tick: null, dim: false, lit: true};
+        this._level = {fraction: 0, color: COLORS.gray, tick: null, lit: true};
         this.connect('repaint', () => this._draw());
     }
 
     setLevel(level) {
-        this._level = {tick: null, dim: false, lit: true, ...level};
+        this._level = {tick: null, lit: true, ...level};
         this.queue_repaint();
     }
 
     _draw() {
         const cr = this.get_context();
         const [width, height] = this.get_surface_size();
-        const {fraction, color, tick, dim, lit} = this._level;
+        const {fraction, color, tick, lit} = this._level;
         const bar = height * this._thickness;
         const top = (height - bar) / 2;
         pill(cr, 0, top, width, bar);
@@ -109,7 +109,7 @@ class Meter extends St.DrawingArea {
         const filled = Math.max(0, Math.min(1, fraction || 0)) * width;
         if (filled > 0 && lit) {
             pill(cr, 0, top, Math.max(bar, filled), bar);
-            cr.setSourceRGBA(...rgb(color), dim ? 0.45 : 1);
+            cr.setSourceRGBA(...rgb(color), 1);
             cr.fill();
         }
         if (tick !== null) {
@@ -248,26 +248,36 @@ export default class WorkHabbitsExtension extends Extension {
             identity.add_child(bar);
             for (const child of [icon, identity, time]) actor.add_child(child);
             box.add_child(actor);
-            return {icon, name, bar, time, color: COLORS.gray, fraction: 0, painted: null};
+            return {icon, name, bar, time, gauge: null, blinkStarted: 0, painted: null};
         };
         this._panelItems = {
             posture: item('Posture', new St.Icon({gicon: this._postureIcon, style_class: 'system-status-icon'})),
             hands: item('Hands', new St.Icon({icon_name: 'input-keyboard-symbolic', style_class: 'system-status-icon'})),
         };
-        this._blink = {posture: null, hands: null};
-        this._blinkStarted = {posture: 0, hands: 0};
     }
 
+    // Orange blinks slowly, red fast; the label and time stay steady.
     _paintGauges(gauges) {
         const icons = this._settings.get_boolean('panel-icons');
+        const now = GLib.get_monotonic_time() / 1e6;
         for (const [name, item] of Object.entries(this._panelItems)) {
-            const {color, fraction, seconds} = gauges[name];
-            item.color = COLORS[color];
-            item.fraction = fraction;
+            const gauge = gauges[name];
+            if (gauge.blink !== item.gauge?.blink) item.blinkStarted = now;
+            item.gauge = gauge;
             item.icon.visible = icons;
-            item.time.text = seconds === null ? '—' : formatTimer(seconds);
+            item.time.text = gauge.seconds === null ? '—' : formatTimer(gauge.seconds);
         }
-        this._setBlink({posture: gauges.posture.blink, hands: gauges.hands.blink});
+        const blinking = Object.values(gauges).some(gauge => gauge.blink);
+        if (blinking && !this._blinkId) {
+            this._blinkId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 250, () => {
+                this._paintBlink();
+                return GLib.SOURCE_CONTINUE;
+            });
+        } else if (!blinking && this._blinkId) {
+            GLib.Source.remove(this._blinkId);
+            this._blinkId = null;
+        }
+        this._paintBlink();
     }
 
     _buildMenu(menu) {
@@ -361,46 +371,27 @@ export default class WorkHabbitsExtension extends Extension {
             this.openPreferences();
         });
         popup.add_child(settings);
-        this._historyItem = new PopupMenu.PopupMenuItem('', {reactive: false, can_focus: false});
-        this._historyItem.visible = false;
-        menu.addMenuItem(this._historyItem);
-        this._soundItem = new PopupMenu.PopupMenuItem('', {reactive: false, can_focus: false});
-        this._soundItem.visible = false;
-        menu.addMenuItem(this._soundItem);
-    }
-
-    // Orange blinks slowly, red fast; the label and time stay steady.
-    _setBlink(kinds) {
-        const now = GLib.get_monotonic_time() / 1e6;
-        for (const [name, kind] of Object.entries(kinds))
-            if (kind !== this._blink[name]) this._blinkStarted[name] = now;
-        this._blink = kinds;
-        const blinking = Object.values(kinds).some(Boolean);
-        if (blinking && !this._blinkId) {
-            this._blinkId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 250, () => {
-                this._paintBlink();
-                if (Object.values(this._blink).some(Boolean))
-                    return GLib.SOURCE_CONTINUE;
-                this._blinkId = null;
-                return GLib.SOURCE_REMOVE;
-            });
-        } else if (!blinking && this._blinkId) {
-            GLib.Source.remove(this._blinkId);
-            this._blinkId = null;
-        }
-        this._paintBlink();
+        const statusItem = () => {
+            const item = new PopupMenu.PopupMenuItem('', {reactive: false, can_focus: false});
+            item.visible = false;
+            menu.addMenuItem(item);
+            return item;
+        };
+        this._historyItem = statusItem();
+        this._soundItem = statusItem();
     }
 
     _paintBlink() {
         const now = GLib.get_monotonic_time() / 1e6;
-        for (const [name, item] of Object.entries(this._panelItems)) {
-            const kind = this._blink[name];
-            const lit = !kind || Math.floor((now - this._blinkStarted[name]) / (kind === 'slow' ? 1 : 0.5)) % 2 === 0;
-            const painted = `${item.fraction}|${item.color}|${lit}`;
+        for (const item of Object.values(this._panelItems)) {
+            const {blink, fraction} = item.gauge;
+            const color = COLORS[item.gauge.color];
+            const lit = !blink || Math.floor((now - item.blinkStarted) / (blink === 'slow' ? 1 : 0.5)) % 2 === 0;
+            const painted = `${fraction}|${color}|${lit}`;
             if (painted === item.painted) continue;
             item.painted = painted;
-            item.bar.setLevel({fraction: item.fraction, color: item.color, lit});
-            item.icon.set_style(`color: ${item.color};`);
+            item.bar.setLevel({fraction, color, lit});
+            item.icon.set_style(`color: ${color};`);
             item.icon.opacity = lit ? 255 : 60;
         }
     }
@@ -532,16 +523,17 @@ export default class WorkHabbitsExtension extends Extension {
         const handsIdle = model.handsIdle(idleSeconds);
         const deskAvailable = active && this._deskReady;
         const inputAvailable = active && this._eventsAvailable;
-        const deskColor = model.deskColor(deskAvailable);
-        const inputColor = model.inputColor(inputAvailable, handsIdle);
         const gauges = model.gauges({desk: deskAvailable, input: inputAvailable, idleSeconds, handsIdle});
+        const deskColor = gauges.posture.color;
+        const inputColor = gauges.hands.color;
         this._paintGauges(gauges);
         const red = model.redReminders({active, idleSeconds, handsIdle});
         const allowed = this._settings.get_boolean('sound-enabled') && this._notificationSettings.get_boolean('show-banners');
-        if (this._chimes.update({red, allowed, repeatSeconds: this._settings.get_uint('sound-repeat'),
-            nowSeconds: GLib.get_monotonic_time() / 1e6}))
+        const chime = this._chimes.update({red, allowed, repeatSeconds: this._settings.get_uint('sound-repeat'),
+            nowSeconds: GLib.get_monotonic_time() / 1e6});
+        if (chime === 'play')
             this._sound.play(this._settings.get_uint('sound-effect'), this._settings.get_uint('sound-volume'));
-        else if (!allowed || !red.some(reminder => reminder.active))
+        else if (chime === 'stop')
             this._sound.stop();
         const tooLate = (gauge, name) => gauge.color === 'red' && !model.snoozes[name]
             ? `Too late: penalty in ${formatTimer(gauge.seconds)}` : '';
@@ -584,18 +576,20 @@ export default class WorkHabbitsExtension extends Extension {
                     : `Rest for ${Math.floor(SETTINGS.inputResetIdle / 60)}m to reset`);
         if (this._indicator.menu.isOpen) this._renderMetrics();
         this._indicator.accessible_name = `work-habbits: ${this._deskReady ? this._position : 'posture unknown'}, posture ${deskColor}, hands ${inputColor}`;
-        this._historyItem.visible = Boolean(this._store.error || this._store.warnings.length);
-        this._historyItem.label.text = this._store.error ? 'History save failed; will retry'
-            : this._store.warnings.length ? 'Unreadable history preserved; see logs' : '';
-        this._soundItem.visible = Boolean(this._soundError);
-        this._soundItem.label.text = this._soundError;
+        const status = (item, text) => {
+            item.visible = Boolean(text);
+            item.label.text = text;
+        };
+        status(this._historyItem, this._store.error ? 'History save failed; will retry'
+            : this._store.warnings.length ? 'Unreadable history preserved; see logs' : '');
+        status(this._soundItem, this._soundError);
         this._snoozeButton.visible = active && model.snoozable().length > 0;
         const names = {seated: 'Stand', stand: 'Sit', input: 'Hands'};
         const states = model.snoozeStates();
         this._snoozeHint.text = Object.entries(states).map(([name, state]) => {
             const time = formatTimer(model.snoozeSeconds(name));
-            return `${names[name]}: ${state === 'snoozed' ? `snoozed ${time}` : model.snoozes[name].state === 'active'
-                ? `penalty in ${time}, counts ×${SETTINGS.snoozePenalty}` : `penalty in ${time}`}`;
+            const doubled = model.snoozes[name].state === 'active' ? `, counts ×${SETTINGS.snoozePenalty}` : '';
+            return `${names[name]}: ${state === 'snoozed' ? `snoozed ${time}` : `penalty in ${time}${doubled}`}`;
         }).join('\n');
         this._snoozeHint.visible = Boolean(this._snoozeHint.text);
     }
@@ -682,7 +676,7 @@ export default class WorkHabbitsExtension extends Extension {
         this._socketCancel?.cancel();
         this._socketCancel = null;
         this._stopReader();
-        this._sound?.destroy();
+        this._sound?.stop();
         this._sound = null;
         this._chimes = null;
         this._notificationSettings = null;

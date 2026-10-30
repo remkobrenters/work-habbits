@@ -51,7 +51,7 @@ const dependencies = {
     'gi://GLib': {get_user_name: () => 'tester', get_monotonic_time: () => 0,
         DateTime: {new_now_local: () => ({format: () => '2026-10-29'})},
         timeout_add: () => 1, Source: {remove() {}}, PRIORITY_DEFAULT: 0,
-        find_program_in_path: () => null, path_is_absolute: () => true, file_test: () => true, FileTest: {IS_REGULAR: 0}},
+        find_program_in_path: () => null},
     'gi://Gio': {},
     'gi://Meta': {is_wayland_compositor: () => true},
     'resource:///org/gnome/shell/ui/main.js': {notify: (...args) => notified.push(args)},
@@ -87,7 +87,7 @@ function buildApp({seated = SETTINGS.seatedDue, input = SETTINGS.inputDue} = {})
     const app = new extension.namespace.default();
     const menu = {box: new Actor(), isOpen: true, items: [], addMenuItem(item) { this.items.push(item); }};
     app._settings = {get_string: () => 'manual',
-        get_boolean: key => ({'panel-icons': state.icons, 'notifications-enabled': true, 'sound-enabled': true})[key] ?? false,
+        get_boolean: key => ({'panel-icons': state.icons, 'sound-enabled': true})[key] ?? false,
         get_uint: key => ({'sound-effect': 3, 'sound-repeat': 15, 'sound-volume': 70})[key]};
     app._indicator = {menu};
     app._postureIcon = 'standing-icon';
@@ -130,7 +130,7 @@ test('dashboard keeps colored charts, posture percentages and score while coexis
     assert.equal(posture.bar._level.color, orange);
     assert.equal(posture.bar._level.fraction, 1);
     assert.equal(posture.time.text, '2:00', 'Orange counts down the 2-minute warning');
-    assert.equal(app._blink.posture, 'slow');
+    assert.equal(posture.gauge.blink, 'slow');
     state.icons = true;
     app._paint(true, 0, 'manual', true);
     assert.equal(posture.icon.visible, true);
@@ -173,7 +173,7 @@ test('dashboard keeps colored charts, posture percentages and score while coexis
     app._paint(true, 0, 'manual', true);
     assert.equal(app._postureCard.meter._level.color, '#f26a66');
     assert.equal(posture.bar._level.color, '#f26a66');
-    assert.equal(app._blink.posture, 'fast');
+    assert.equal(posture.gauge.blink, 'fast');
     assert.equal(app._postureCard.hint.text, 'Too late: penalty in 5:00');
     assert.equal(app._handsCard.hint.text, 'Too late: penalty in 5:00');
     assert.deepEqual(notified, [], 'Reminders never raise desktop banners');

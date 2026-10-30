@@ -4,7 +4,8 @@ import {ChimeSchedule, SOUND_EFFECTS, SOUND_REPEATS, playerArgs, soundFile} from
 
 // Each step: [seconds, red reminders as {name: active}, allowed, repeat seconds].
 const run = (schedule, steps) => steps.map(([nowSeconds, red, allowed = true, repeatSeconds = 15]) =>
-    schedule.update({red: Object.entries(red).map(([name, active]) => ({name, active})), allowed, repeatSeconds, nowSeconds}));
+    schedule.update({red: Object.entries(red).map(([name, active]) => ({name, active})), allowed, repeatSeconds,
+        nowSeconds}) === 'play');
 const typing = {input: true};
 const paused = {input: false};
 
@@ -30,6 +31,14 @@ test('once means only on entering red; another reminder turning red chimes at on
 test('muted while not allowed or while nobody is active; turning sound back on chimes at once', () => {
     assert.deepEqual(run(new ChimeSchedule(), [[0, typing, false], [20, typing, false], [21, typing, true], [22, typing, false],
         [23, paused, true]]), [false, false, true, false, false]);
+});
+
+test('silence is explicit: stop when muted or nobody is active, otherwise let a playing sound finish', () => {
+    const schedule = new ChimeSchedule();
+    const step = (red, allowed = true) => schedule.update({red: Object.entries(red).map(([name, active]) => ({name, active})),
+        allowed, repeatSeconds: 15, nowSeconds: 0});
+    assert.deepEqual([step(typing), step(typing), step(paused), step(typing, false), step({})],
+        ['play', null, 'stop', 'stop', 'stop']);
 });
 
 test('sound choices and files', () => {

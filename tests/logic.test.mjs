@@ -7,7 +7,6 @@ const now = 1_000_000;
 const tick = (model, overrides = {}, cfg = SETTINGS) => model.update({dt: 1, wallMs: now, localActive: true,
     deskReady: true, position: 'sitting', idleSeconds: 0, inputAvailable: true, ...overrides}, cfg);
 const batch = (overrides = {}) => ({keys: 1, clicks: 2, moves: 3, lastInputWallMs: now, ...overrides});
-const W = () => SETTINGS.redWindow;
 
 test('all desk modes are explicit, unavailable Bluetooth never appears healthy', () => {
     assert.deepEqual(deskState('manual', 'standing', null, now), {ready: true, position: 'standing'});
@@ -193,10 +192,10 @@ test('entering red warns without a penalty; halfway and the end each charge one,
     const model = new WellnessModel({seated: SETTINGS.seatedLate - 1});
     tick(model);
     assert.deepEqual([model.deskColor(true), model.missed], ['red', 0]);
-    model.seated = SETTINGS.seatedLate + W() / 2 - 1;
+    model.seated = SETTINGS.seatedLate + SETTINGS.redWindow / 2 - 1;
     tick(model);
     assert.equal(model.missed, 1);
-    model.seated = SETTINGS.seatedLate + W() - 1;
+    model.seated = SETTINGS.seatedLate + SETTINGS.redWindow - 1;
     tick(model);
     assert.deepEqual([model.missed, model.seated, model.deskColor(true)], [2, 0, 'green']);
 });
@@ -209,10 +208,10 @@ test('an ignored reminder never charges more than two per round', () => {
 });
 
 test('hands and the sit-down reminder reset their own timer; a reset stand earns no point', () => {
-    const hands = new WellnessModel({input: SETTINGS.inputLate + W() - 1, missed: 1, lastInputWallMs: now});
+    const hands = new WellnessModel({input: SETTINGS.inputLate + SETTINGS.redWindow - 1, missed: 1, lastInputWallMs: now});
     tick(hands);
     assert.deepEqual([hands.missed, hands.input], [2, 0]);
-    const stand = new WellnessModel({standingRun: SETTINGS.standLate + W() - 1, standComplete: true, missed: 1, heeded: 1});
+    const stand = new WellnessModel({standingRun: SETTINGS.standLate + SETTINGS.redWindow - 1, standComplete: true, missed: 1, heeded: 1});
     tick(stand, {position: 'standing'});
     assert.deepEqual([stand.missed, stand.standingRun, stand.standComplete, stand.deskColor(true)], [2, 0, true, 'green']);
     assert.deepEqual(stand.snoozable(), []);
@@ -236,10 +235,10 @@ test('a change before red earns a point; in red before the first penalty it is n
 });
 
 test('idle and locked time never advance the red window', () => {
-    const model = new WellnessModel({seated: SETTINGS.seatedLate + W() / 2 - 1});
+    const model = new WellnessModel({seated: SETTINGS.seatedLate + SETTINGS.redWindow / 2 - 1});
     tick(model, {idleSeconds: SETTINGS.postureActiveWindow});
     tick(model, {localActive: false});
-    assert.deepEqual([model.missed, model.seated], [0, SETTINGS.seatedLate + W() / 2 - 1]);
+    assert.deepEqual([model.missed, model.seated], [0, SETTINGS.seatedLate + SETTINGS.redWindow / 2 - 1]);
 });
 
 test('a snooze takes back penalties, holds the round, then gives a doubled red window', async () => {
@@ -261,7 +260,7 @@ test('a snooze takes back penalties, holds the round, then gives a doubled red w
 });
 
 test('a snooze already holding a penalty takes it back', () => {
-    const model = new WellnessModel({seated: SETTINGS.seatedLate + W() / 2, missed: 1});
+    const model = new WellnessModel({seated: SETTINGS.seatedLate + SETTINGS.redWindow / 2, missed: 1});
     model.lastPosition = 'sitting';
     model.snooze(now);
     assert.equal(model.missed, 0);
@@ -281,7 +280,7 @@ test('a short lock forgives a snooze but it runs to its end; then penalties coun
 });
 
 test('upgrading never replays penalties: old broken snoozes are dropped, past-window timers reset', () => {
-    const model = new WellnessModel({seated: SETTINGS.seatedLate + W() + 5, missed: 3,
+    const model = new WellnessModel({seated: SETTINGS.seatedLate + SETTINGS.redWindow + 5, missed: 3,
         snoozes: {seated: {until: 1, held: 0, grace: 0, state: 'broken', charged: 2}}});
     assert.deepEqual(model.snoozes, {});
     tick(model);

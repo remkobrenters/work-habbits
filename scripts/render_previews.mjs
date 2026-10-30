@@ -32,7 +32,7 @@ chrome.stdio[4].on('data', chunk => {
         else call.resolve(message.result);
     }
 });
-const send = (method, params = {}, sessionId = undefined) => new Promise((resolve, reject) => {
+const send = (method, params = {}, sessionId) => new Promise((resolve, reject) => {
     const id = ++nextId;
     pending.set(id, {resolve, reject});
     chrome.stdio[3].write(`${JSON.stringify({id, method, params, sessionId})}\0`);
@@ -59,8 +59,8 @@ try {
         await loaded;
         await send('Runtime.evaluate', {expression: 'document.fonts.ready.then(() => true)', awaitPromise: true}, sessionId);
         const {result} = await send('Runtime.evaluate', {returnByValue: true,
-            expression: "JSON.stringify(document.querySelector('section:target > *').getBoundingClientRect())"}, sessionId);
-        const {x, y, width, height} = JSON.parse(result.value);
+            expression: "document.querySelector('section:target > *').getBoundingClientRect().toJSON()"}, sessionId);
+        const {x, y, width, height} = result.value;
         const {data} = await send('Page.captureScreenshot', {format: 'png', clip: {x, y, width, height, scale: 1}},
             sessionId);
         writeFileSync(join(root, 'docs/previews', `${scene}.png`), Buffer.from(data, 'base64'));

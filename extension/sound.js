@@ -39,8 +39,7 @@ export class Sound {
                 // A sound stopped on purpose is not a failure.
                 if (this._process !== source) return;
                 this._process = null;
-                if (this._timer) GLib.Source.remove(this._timer);
-                this._timer = null;
+                this.stop();
                 if (failed) this._onError('Could not play the reminder sound. Check the output device.');
             });
         } catch (error) {
@@ -53,9 +52,5 @@ export class Sound {
         this._timer = null;
         this._process?.force_exit();
         this._process = null;
-    }
-
-    destroy() {
-        this.stop();
     }
 }

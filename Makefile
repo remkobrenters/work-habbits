@@ -9,7 +9,7 @@ lint:
 	$(RUFF) format --check .
 	bash -n install.sh status.sh uninstall.sh
 	shellcheck install.sh status.sh uninstall.sh
-	@for file in extension/*.js tests/*.js tests/*.mjs; do node --check "$$file"; done
+	@for file in extension/*.js tests/*.js tests/*.mjs scripts/*.mjs; do node --check "$$file"; done
 	glib-compile-schemas --strict --dry-run extension/schemas
 	$(PYTHON) -m compileall -q desk_monitor.py desk_service.py input_monitor.py tests scripts
 

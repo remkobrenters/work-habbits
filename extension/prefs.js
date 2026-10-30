@@ -11,26 +11,31 @@ export default class WorkHabbitsPreferences extends ExtensionPreferences {
         const settings = this.getSettings();
         const page = new Adw.PreferencesPage({title: 'work-habbits', icon_name: 'preferences-system-symbolic'});
         window.add(page);
+        const range = key => settings.settings_schema.get_key(key).get_range().recursiveUnpack()[1];
+        const switchRow = (group, key, title) => {
+            const row = new Adw.SwitchRow({title});
+            settings.bind(key, row, 'active', Gio.SettingsBindFlags.DEFAULT);
+            group.add(row);
+        };
+        const comboRow = (title, names, selected, store) => {
+            const row = new Adw.ComboRow({title, model: Gtk.StringList.new(names), selected});
+            row.connect('notify::selected', () => store(row.selected));
+            return row;
+        };
         const general = new Adw.PreferencesGroup({title: 'Tracking',
             description: 'Posture reminders on Xorg or Wayland. Keyboard/mouse counts require Xorg. Turning tracking off pauses input collection, posture timers, reminders and the Bluetooth helper. History is kept.'});
         page.add(general);
-        for (const [key, title] of [['tracking-enabled', 'Enable tracking'], ['panel-icons', 'Show icons in the top bar']]) {
-            const row = new Adw.SwitchRow({title});
-            settings.bind(key, row, 'active', Gio.SettingsBindFlags.DEFAULT);
-            general.add(row);
-        }
+        switchRow(general, 'tracking-enabled', 'Enable tracking');
+        switchRow(general, 'panel-icons', 'Show icons in the top bar');
         const audio = new Adw.PreferencesGroup({title: 'Sound', description:
             'Orange stays silent. In red a sound plays while you are at the computer. Do Not Disturb mutes it.'});
         page.add(audio);
-        const sound = new Adw.SwitchRow({title: 'Play a sound when a reminder turns red'});
-        settings.bind('sound-enabled', sound, 'active', Gio.SettingsBindFlags.DEFAULT);
-        audio.add(sound);
-        const effect = new Adw.ComboRow({title: 'Sound', model: Gtk.StringList.new(SOUND_EFFECTS.map(option => option.name)),
-            selected: Math.min(SOUND_EFFECTS.length, Math.max(1, settings.get_uint('sound-effect'))) - 1});
-        effect.connect('notify::selected', () => settings.set_uint('sound-effect', effect.selected + 1));
+        switchRow(audio, 'sound-enabled', 'Play a sound when a reminder turns red');
+        const effect = comboRow('Sound', SOUND_EFFECTS.map(option => option.name), settings.get_uint('sound-effect') - 1,
+            index => settings.set_uint('sound-effect', index + 1));
         const preview = new Sound(this.path, message => window.add_toast(new Adw.Toast({title: message})));
         window.connect('close-request', () => {
-            preview.destroy();
+            preview.stop();
             return false;
         });
         const play = new Gtk.Button({icon_name: 'media-playback-start-symbolic', tooltip_text: 'Play',
@@ -38,27 +43,23 @@ export default class WorkHabbitsPreferences extends ExtensionPreferences {
         play.connect('clicked', () => preview.play(settings.get_uint('sound-effect'), settings.get_uint('sound-volume')));
         effect.add_suffix(play);
         audio.add(effect);
+        const [quietest, loudest] = range('sound-volume');
         const volume = new Adw.SpinRow({title: 'Volume (%)',
-            adjustment: new Gtk.Adjustment({lower: 0, upper: 100, step_increment: 5, page_increment: 10,
+            adjustment: new Gtk.Adjustment({lower: quietest, upper: loudest, step_increment: 5, page_increment: 10,
                 value: settings.get_uint('sound-volume')})});
         volume.connect('notify::value', () => settings.set_uint('sound-volume', Math.round(volume.value)));
         audio.add(volume);
         const repeatIndex = SOUND_REPEATS.findIndex(option => option.seconds === settings.get_uint('sound-repeat'));
-        const repeat = new Adw.ComboRow({title: 'Repeat while red',
-            model: Gtk.StringList.new(SOUND_REPEATS.map(option => option.name)),
-            selected: repeatIndex < 0 ? SOUND_REPEATS.findIndex(option => option.seconds === 15) : repeatIndex});
-        repeat.connect('notify::selected', () => settings.set_uint('sound-repeat', SOUND_REPEATS[repeat.selected].seconds));
-        audio.add(repeat);
+        audio.add(comboRow('Repeat while red', SOUND_REPEATS.map(option => option.name),
+            repeatIndex < 0 ? SOUND_REPEATS.findIndex(option => option.seconds === 15) : repeatIndex,
+            index => settings.set_uint('sound-repeat', SOUND_REPEATS[index].seconds)));
         const desk = new Adw.PreferencesGroup({title: 'Desk', description:
             'Bluetooth: TiMOTION TWD1 / Nordic UART only. Manual: mark sitting or standing yourself. ' +
             'Disabled: use the menu to mark movement breaks with a fixed desk.'});
         page.add(desk);
         const modes = ['manual', 'disabled', 'bluetooth'];
-        const mode = new Adw.ComboRow({title: 'Desk movement',
-            model: Gtk.StringList.new(['Manual', 'Disabled (fixed desk)', 'Bluetooth (TWD1)']),
-            selected: modes.indexOf(settings.get_string('desk-mode'))});
-        mode.connect('notify::selected', () => settings.set_string('desk-mode', modes[mode.selected]));
-        desk.add(mode);
+        desk.add(comboRow('Desk movement', ['Manual', 'Disabled (fixed desk)', 'Bluetooth (TWD1)'],
+            modes.indexOf(settings.get_string('desk-mode')), index => settings.set_string('desk-mode', modes[index])));
         const device = new Adw.EntryRow({title: 'Bluetooth device address', show_apply_button: true,
             text: settings.get_string('desk-device')});
         device.connect('apply', () => {
@@ -87,7 +88,7 @@ export default class WorkHabbitsPreferences extends ExtensionPreferences {
         for (const [group, rows] of groups) {
             if (group !== desk) page.add(group);
             for (const [key, title] of rows) {
-                const [min, max] = settings.settings_schema.get_key(key).get_range().recursiveUnpack()[1];
+                const [min, max] = range(key);
                 const row = new Adw.SpinRow({title, digits: 0,
                     adjustment: new Gtk.Adjustment({lower: min, upper: max, step_increment: 1, page_increment: 5,
                         value: settings.get_uint(key)})});
