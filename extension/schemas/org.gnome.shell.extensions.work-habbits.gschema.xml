@@ -50,6 +50,10 @@
       <default>true</default>
       <summary>Enable activity tracking</summary>
     </key>
+    <key name="panel-icons" type="b">
+      <default>false</default>
+      <summary>Show posture and keyboard icons in the top bar</summary>
+    </key>
     <key name="notifications-enabled" type="b">
       <default>true</default>
       <summary>Show desktop break reminders</summary>

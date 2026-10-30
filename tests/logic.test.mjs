@@ -7,6 +7,7 @@ const now = 1_000_000;
 const tick = (model, overrides = {}, cfg = SETTINGS) => model.update({dt: 1, wallMs: now, localActive: true,
     deskReady: true, position: 'sitting', idleSeconds: 0, inputAvailable: true, ...overrides}, cfg);
 const batch = (overrides = {}) => ({keys: 1, clicks: 2, moves: 3, lastInputWallMs: now, ...overrides});
+const W = () => SETTINGS.redWindow;
 
 test('all desk modes are explicit, unavailable Bluetooth never appears healthy', () => {
     assert.deepEqual(deskState('manual', 'standing', null, now), {ready: true, position: 'standing'});
@@ -116,22 +117,6 @@ test('motion-only batches are retained before the first key; malformed counters 
     assert.equal(model.input, 0);
 });
 
-test('countdown selects due reminders before future deadlines and counts hand rest down', () => {
-    const model = new WellnessModel({seated: 7190, input: 1500, standingRun: 100, lastInputWallMs: now});
-    tick(model, {idleSeconds: 11});
-    assert.deepEqual(model.countdown({desk: true, input: true, idleSeconds: 11}),
-        {icon: 'input', due: true, seconds: 109});
-    assert.equal(model.countdown({desk: false, input: false, idleSeconds: 0}), null);
-    tick(model, {position: 'standing'});
-    assert.equal(model.countdown({desk: true, input: false}).seconds, 1199);
-    model.standComplete = true;
-    model.standingRun = 1200;
-    assert.equal(model.countdown({desk: true, input: false}).seconds, SETTINGS.standLate - 1200);
-    tick(model);
-    model.seated = 7200;
-    assert.equal(model.countdown({desk: true, input: false}).seconds, 1200);
-});
-
 test('configuration validates heights and device addresses and converts minutes to seconds', () => {
     assert.match(preferencesProblem({'desk-sit': 112, 'desk-stand': 80}), /sitting height/);
     assert.match(preferencesProblem({'desk-device': 'not a device'}), /Bluetooth address/);
@@ -175,20 +160,6 @@ test('habit score rewards timely hand rest and full posture breaks, counts penal
     assert.equal(restored.missed, 1, 'Switching desk mode preserves earned daily score');
 });
 
-test('countdown urgency blinks near deadlines, becomes red after 30 active seconds and stops while paused', () => {
-    const model = new WellnessModel({seated: SETTINGS.seatedDue - 11, input: SETTINGS.inputDue - 10});
-    model.lastPosition = 'sitting';
-    assert.deepEqual(model.reminderUrgency({desk: true, input: true}), {desk: null, input: 'near'});
-    model.seated++;
-    assert.equal(model.reminderUrgency({desk: true}).desk, 'near');
-    model.seated = SETTINGS.seatedDue + 30;
-    assert.equal(model.reminderUrgency({desk: true}).desk, 'due');
-    assert.deepEqual(model.reminderUrgency({desk: false, input: false}), {desk: null, input: null});
-    model.lastPosition = 'away';
-    model.standingRun = SETTINGS.standRequired;
-    assert.equal(model.reminderUrgency({desk: true}).desk, 'near');
-});
-
 test('locking, leaving and prolonged inactivity forgive snoozes without penalty', () => {
     for (const overrides of [{localActive: false}, {idleSeconds: SETTINGS.snoozeAway},
         {localActive: false, deskReady: false}]) {
@@ -217,18 +188,6 @@ test('standing and hands snoozes use their configured duration and break clears 
     assert.equal(hands.snoozes.input, undefined);
     assert.equal(hands.missed, 0);
 });
-
-test('snoozed countdown shows time left and suppresses blinking', () => {
-    const model = new WellnessModel({seated: SETTINGS.seatedLate, missed: 1, lastInputWallMs: now});
-    model.lastPosition = 'sitting';
-    model.snooze(now);
-    model.wallMs = now;
-    assert.equal(model.countdown({desk: true, input: false}).seconds, SETTINGS.seatedSnooze);
-    assert.equal(model.reminderUrgency({desk: true, input: false}).desk, null);
-    assert.equal(model.deskColor(true), 'orange');
-});
-
-const W = () => SETTINGS.redWindow;
 
 test('entering red warns without a penalty; halfway and the end each charge one, then the round resets', () => {
     const model = new WellnessModel({seated: SETTINGS.seatedLate - 1});

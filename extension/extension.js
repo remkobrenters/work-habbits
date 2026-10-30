@@ -80,30 +80,32 @@ function pill(cr, x, y, width, height) {
 }
 
 // A budget bar: fill coloured by state, optional tick at the warning threshold.
+// An unlit level draws only the track, for blinking.
 const Meter = GObject.registerClass({GTypeName: 'WorkHabbitsMeter'},
 class Meter extends St.DrawingArea {
-    _init() {
-        super._init({style_class: 'wh-meter', x_expand: true, y_align: Clutter.ActorAlign.CENTER});
-        this._level = {fraction: 0, color: COLORS.gray, tick: null, dim: false};
+    _init({style_class = 'wh-meter', thickness = 0.5, x_expand = true} = {}) {
+        super._init({style_class, x_expand, y_align: Clutter.ActorAlign.CENTER});
+        this._thickness = thickness;
+        this._level = {fraction: 0, color: COLORS.gray, tick: null, dim: false, lit: true};
         this.connect('repaint', () => this._draw());
     }
 
     setLevel(level) {
-        this._level = {tick: null, dim: false, ...level};
+        this._level = {tick: null, dim: false, lit: true, ...level};
         this.queue_repaint();
     }
 
     _draw() {
         const cr = this.get_context();
         const [width, height] = this.get_surface_size();
-        const {fraction, color, tick, dim} = this._level;
-        const bar = height / 2;
+        const {fraction, color, tick, dim, lit} = this._level;
+        const bar = height * this._thickness;
         const top = (height - bar) / 2;
         pill(cr, 0, top, width, bar);
         cr.setSourceRGBA(0.5, 0.5, 0.5, 0.22);
         cr.fill();
         const filled = Math.max(0, Math.min(1, fraction || 0)) * width;
-        if (filled > 0) {
+        if (filled > 0 && lit) {
             pill(cr, 0, top, Math.max(bar, filled), bar);
             cr.setSourceRGBA(...rgb(color), dim ? 0.45 : 1);
             cr.fill();
@@ -202,19 +204,11 @@ export default class WorkHabbitsExtension extends Extension {
         this._alerts = {};
         this._socketCancel = new Gio.Cancellable();
 
-        this._postureIcons = Object.fromEntries(['sitting', 'standing'].map(position =>
-            [position, new Gio.FileIcon({file: this.dir.get_child('icons').get_child(`${position}-symbolic.svg`)})]));
+        this._postureIcon = new Gio.FileIcon({file: this.dir.get_child('icons').get_child('standing-symbolic.svg')});
         this._indicator = new PanelMenu.Button(0.0, 'work-habbits', false);
         const box = new St.BoxLayout({style_class: 'wh-panel'});
-        this._deskIcon = new St.Icon({icon_name: 'preferences-desktop-accessibility-symbolic', style_class: 'system-status-icon'});
-        this._inputIcon = new St.Icon({icon_name: 'input-keyboard-symbolic', style_class: 'system-status-icon'});
-        this._countdownColor = COLORS.gray;
-        this._blinkKind = null;
         this._blinkId = null;
-        this._blinkStarted = 0;
-        this._countdownStyle = null;
-        this._countdown = new St.Label({y_align: Clutter.ActorAlign.CENTER, style_class: 'wh-countdown'});
-        for (const actor of [this._deskIcon, this._countdown, this._inputIcon]) box.add_child(actor);
+        this._buildPanel(box);
         this._indicator.add_child(box);
         this._buildMenu(this._indicator.menu);
         this._indicator.menu.connect('open-state-changed', (_menu, open) => {
@@ -230,6 +224,41 @@ export default class WorkHabbitsExtension extends Extension {
             this._tick();
             return GLib.SOURCE_CONTINUE;
         });
+    }
+
+    // Top bar: per item an optional icon, the label over its progress bar, and the time.
+    _buildPanel(box) {
+        const item = (title, icon) => {
+            const actor = new St.BoxLayout({style_class: 'wh-gauge', y_align: Clutter.ActorAlign.CENTER});
+            const identity = new St.BoxLayout({...vertical, style_class: 'wh-gauge-identity', y_align: Clutter.ActorAlign.CENTER});
+            const name = label(title, {style_class: 'wh-gauge-name'});
+            const bar = new Meter({style_class: 'wh-panel-meter', thickness: 1, x_expand: false});
+            const time = label('', {style_class: 'wh-gauge-time wh-num', muted: true});
+            time.y_align = Clutter.ActorAlign.START;
+            identity.add_child(name);
+            identity.add_child(bar);
+            for (const child of [icon, identity, time]) actor.add_child(child);
+            box.add_child(actor);
+            return {icon, name, bar, time, color: COLORS.gray, fraction: 0, painted: null};
+        };
+        this._panelItems = {
+            posture: item('Posture', new St.Icon({gicon: this._postureIcon, style_class: 'system-status-icon'})),
+            hands: item('Hands', new St.Icon({icon_name: 'input-keyboard-symbolic', style_class: 'system-status-icon'})),
+        };
+        this._blink = {posture: null, hands: null};
+        this._blinkStarted = {posture: 0, hands: 0};
+    }
+
+    _paintGauges(gauges) {
+        const icons = this._settings.get_boolean('panel-icons');
+        for (const [name, item] of Object.entries(this._panelItems)) {
+            const {color, fraction, seconds} = gauges[name];
+            item.color = COLORS[color];
+            item.fraction = fraction;
+            item.icon.visible = icons;
+            item.time.text = seconds === null ? '—' : formatTimer(seconds);
+        }
+        this._setBlink({posture: gauges.posture.blink, hands: gauges.hands.blink});
     }
 
     _buildMenu(menu) {
@@ -329,35 +358,39 @@ export default class WorkHabbitsExtension extends Extension {
         menu.addMenuItem(this._historyItem);
     }
 
-    _setCountdownBlink(kind) {
-        if (kind !== this._blinkKind) this._blinkStarted = GLib.get_monotonic_time() / 1e6;
-        this._blinkKind = kind;
-        if (kind && !this._blinkId) {
+    // Orange blinks slowly, red fast; the label and time stay steady.
+    _setBlink(kinds) {
+        const now = GLib.get_monotonic_time() / 1e6;
+        for (const [name, kind] of Object.entries(kinds))
+            if (kind !== this._blink[name]) this._blinkStarted[name] = now;
+        this._blink = kinds;
+        const blinking = Object.values(kinds).some(Boolean);
+        if (blinking && !this._blinkId) {
             this._blinkId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 250, () => {
-                this._paintCountdownBlink();
-                if (this._blinkKind)
+                this._paintBlink();
+                if (Object.values(this._blink).some(Boolean))
                     return GLib.SOURCE_CONTINUE;
                 this._blinkId = null;
                 return GLib.SOURCE_REMOVE;
             });
-        } else if (!kind && this._blinkId) {
+        } else if (!blinking && this._blinkId) {
             GLib.Source.remove(this._blinkId);
             this._blinkId = null;
         }
-        this._paintCountdownBlink();
+        this._paintBlink();
     }
 
-    _paintCountdownBlink() {
+    _paintBlink() {
         const now = GLib.get_monotonic_time() / 1e6;
-        const kind = this._blinkKind;
-        const halfPeriod = kind === 'near' ? 1 : 0.5;
-        const lit = kind && Math.floor((now - this._blinkStarted) / halfPeriod) % 2 === 0;
-        const background = lit ? kind === 'near' ? '#fcb930' : '#f97a71' : 'transparent';
-        const foreground = lit ? '#000000' : this._countdownColor;
-        const style = `color: ${foreground}; background-color: ${background};`;
-        if (style !== this._countdownStyle) {
-            this._countdown.set_style(style);
-            this._countdownStyle = style;
+        for (const [name, item] of Object.entries(this._panelItems)) {
+            const kind = this._blink[name];
+            const lit = !kind || Math.floor((now - this._blinkStarted[name]) / (kind === 'slow' ? 1 : 0.5)) % 2 === 0;
+            const painted = `${item.fraction}|${item.color}|${lit}`;
+            if (painted === item.painted) continue;
+            item.painted = painted;
+            item.bar.setLevel({fraction: item.fraction, color: item.color, lit});
+            item.icon.set_style(`color: ${item.color};`);
+            item.icon.opacity = lit ? 255 : 60;
         }
     }
 
@@ -490,20 +523,7 @@ export default class WorkHabbitsExtension extends Extension {
         const inputAvailable = active && this._eventsAvailable;
         const deskColor = model.deskColor(deskAvailable);
         const inputColor = model.inputColor(inputAvailable, handsIdle);
-        const postureIcon = this._deskReady ? this._postureIcons?.[this._position] : null;
-        if (postureIcon) this._deskIcon.gicon = postureIcon;
-        else this._deskIcon.icon_name = 'preferences-desktop-accessibility-symbolic';
-        this._deskIcon.set_style(`color: ${COLORS[deskColor]};`);
-        this._inputIcon.set_style(`color: ${COLORS[inputColor]};`);
-        const next = model.countdown({desk: deskAvailable, input: inputAvailable, idleSeconds: handsIdle});
-        this._countdown.text = next ? next.icon === 'desk'
-            ? `◂ ${formatTimer(next.seconds)}` : `${formatTimer(next.seconds)} ▸` : '';
-        this._countdownColor = COLORS[next?.icon === 'desk' ? deskColor : inputColor];
-        const urgency = model.reminderUrgency({
-            desk: deskAvailable && idleSeconds < SETTINGS.postureActiveWindow,
-            input: inputAvailable && handsIdle < SETTINGS.inputActiveWindow,
-        });
-        this._setCountdownBlink(next ? urgency[next.icon] : null);
+        this._paintGauges(model.gauges({desk: deskAvailable, input: inputAvailable, idleSeconds, handsIdle}));
         const resting = ['standing', 'away'].includes(this._position);
         const reason = !enabled ? 'Tracking paused' : !active ? 'Waiting for an active, unlocked local desktop'
             : !this._deskReady ? this._desk?.error || 'Bluetooth desk unavailable; input tracking continues' : '';

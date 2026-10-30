@@ -1,5 +1,27 @@
 .wh-panel {
-  spacing: 5px;
+  spacing: 14px;
+}
+
+.wh-gauge {
+  spacing: 6px;
+}
+
+.wh-gauge-identity {
+  spacing: 1px;
+}
+
+.wh-gauge-name {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.wh-gauge-time {
+  font-size: 11px;
+}
+
+.wh-panel-meter {
+  width: 44px;
+  height: 3px;
 }
 
 .wh-popup {
@@ -69,13 +91,6 @@
 .wh-rule {
   height: 1px;
   background-color: rgba(128, 128, 128, 0.3);
-}
-
-.wh-countdown {
-  font-weight: bold;
-  font-feature-settings: "tnum";
-  border-radius: 11px;
-  padding: 1px 3px;
 }
 
 .wh-popup { width: 38em; max-width: 42em; }

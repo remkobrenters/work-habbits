@@ -71,12 +71,6 @@ const penalties = (value, late, window) => value >= late + window ? 2 : value >=
 // Snoozable reminders: stand up, sit down again, rest the hands.
 const REMINDERS = ['seated', 'stand', 'input'];
 
-// A reminder's grace between orange and red.
-function grace(name, cfg) {
-    return {seated: cfg.seatedLate - cfg.seatedDue, stand: cfg.standLate - cfg.standRequired,
-        input: cfg.inputLate - cfg.inputDue}[name];
-}
-
 const LATE = {seated: 'seatedLate', stand: 'standLate', input: 'inputLate'};
 const VALUE = {seated: 'seated', stand: 'standingRun', input: 'input'};
 
@@ -292,43 +286,6 @@ export class WellnessModel {
                 seconds: this.input > 0 ? Math.max(0, cfg.inputResetIdle - handsIdle) : cfg.inputDue}
             : gauge('input', this.inputColor(true, handsIdle, cfg), true);
         return {posture, hands};
-    }
-
-    reminderUrgency({desk, input}, cfg = SETTINGS) {
-        const states = this.snoozeStates();
-        desk &&= states[this.lastPosition === 'sitting' ? 'seated' : 'stand'] !== 'snoozed';
-        input &&= states.input !== 'snoozed';
-        const urgency = (value, due) => value >= due + 30 ? 'due' : value >= due - 10 ? 'near' : null;
-        return {
-            desk: desk ? this.lastPosition === 'sitting'
-                ? urgency(this.seated, cfg.seatedDue) : urgency(this.standingRun, cfg.standRequired) : null,
-            input: input ? urgency(this.input, cfg.inputDue) : null,
-        };
-    }
-
-    countdown({desk, input, idleSeconds}, cfg = SETTINGS) {
-        const choices = [];
-        if (desk && this.lastPosition !== 'unknown') {
-            const resting = this.lastPosition !== 'sitting';
-            const value = resting ? this.standingRun : this.seated;
-            const due = resting ? cfg.standRequired : cfg.seatedDue;
-            choices.push({icon: 'desk', due: value >= due,
-                seconds: resting ? Math.max(0, (this.standComplete ? cfg.standLate : due) - value)
-                    : value >= due ? cfg.standRequired : due - value});
-        }
-        if (input) choices.push({icon: 'input', due: this.input >= cfg.inputDue,
-            seconds: this.input >= cfg.inputDue ? Math.max(0, cfg.inputResetIdle - idleSeconds)
-                : cfg.inputDue - this.input});
-        for (const choice of choices) {
-            const name = choice.icon === 'input' ? 'input' : this.lastPosition === 'sitting' ? 'seated' : 'stand';
-            const snooze = this.snoozes[name];
-            if (snooze?.state !== 'active') continue;
-            choice.seconds = this.wallMs < snooze.until ? (snooze.until - this.wallMs) / 1000
-                : Math.max(0, grace(name, cfg) - snooze.grace);
-            choice.due = true;
-        }
-        choices.sort((a, b) => b.due - a.due || a.seconds - b.seconds);
-        return choices[0] ?? null;
     }
 
     serialize(date) {
