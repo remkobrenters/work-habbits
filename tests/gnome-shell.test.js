@@ -38,6 +38,24 @@ export async function run() {
     app._tick();
     check(app._eventsAvailable && app._model.keys > 0, `Generated input must reach the model: ${app._inputError}`);
     check(!app._inputSetupButton.visible, 'Successful input must hide the setup action');
+
+    // Exercise the same status-file path as the Bluetooth helper, using private
+    // generated data. No Bluetooth connection or desk movement is requested.
+    const device = '00:00:00:00:00:01';
+    app._settings.set_string('desk-device', device);
+    app._settings.set_string('desk-mode', 'bluetooth');
+    GLib.mkdir_with_parents(app._runtimeDir, 0o700);
+    GLib.file_set_contents(`${app._runtimeDir}/desk.json`, JSON.stringify({
+        device, connected: true, heartbeat: Date.now() / 1000, height_cm: 112,
+    }));
+    app._tick();
+    check(app._deskReady && app._position === 'standing', 'Fresh Bluetooth status must update posture');
+    check(app._height.text === 'Desk: 112 cm', 'Bluetooth height must reach the native menu');
+    check(app._deskButton.visible && app._deskButton.label.startsWith('Lower desk'),
+        'A connected standing desk must expose its control');
+
+    app._settings.set_string('desk-mode', 'manual');
+    app._tick();
     app._deskAction();
     check(app._position === 'standing', 'Manual posture selection must still work');
 

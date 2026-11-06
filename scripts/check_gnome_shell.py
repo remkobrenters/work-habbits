@@ -109,7 +109,7 @@ def main() -> int:
         if report.get('passed') is not True:
             return 1
         print(
-            f'GNOME Shell check passed: native UI, permission explanation, generated input, posture and pause ({report["generatedKeys"]} generated keys)'
+            f'GNOME Shell check passed: native UI, permission explanation, generated input, Bluetooth status, posture and pause ({report["generatedKeys"]} generated keys)'
         )
         return 0
 
