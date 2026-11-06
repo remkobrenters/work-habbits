@@ -22,6 +22,8 @@ The dashboard test uses Node's built-in VM modules (`--experimental-vm-modules`)
 
 CI and release publication also run `tests/gnome-platform.test.js` against the actual GNOME 50 Meta/GIO libraries in Ubuntu 26.04. This catches removed runtime APIs that mocks can accidentally retain. On a GNOME 50+ development machine, run `make test-gnome` for a separate headless Shell, private D-Bus/settings/history, and generated input. It checks native rendering, permission explanation/cancellation, input summaries, manual posture and pause/resume without restarting the real desktop or opening input devices. It does not test polkit authentication or physical input.
 
+`.github/scripts/install-desktop-tools.sh` is CI-only: it disables package/service restart prompts, bounds apt commands, and emits the last package diagnostics as check annotations on failure. It is never run by the desktop application or its installer.
+
 `extension.js` owns UI/session lifecycle; `logic.js` and `history.js` hold portable logic; `storage.js` persists records. `input_monitor.py` produces X11 summaries or delegates to `wayland_input.py` for Linux evdev summaries using system Python. `wayland_setup.py` applies the fixed input rule only after explicit administrator approval. Wayland tests use synthetic events, pipes, mocked session properties and device metadata; setup tests use a temporary rule path and mock udev. They must not open real input devices, request real authorization, or change system input permissions. `desk_service.py` observes settings and owns the optional `desk_monitor.py` child. GI comes from system Python; Python package dependencies stay in the app environment.
 
 ## Previews

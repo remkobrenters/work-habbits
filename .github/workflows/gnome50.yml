@@ -18,11 +18,8 @@ jobs:
           persist-credentials: false
       - name: Install GNOME 50 runtime libraries
         timeout-minutes: 6
-        env:
-          DEBIAN_FRONTEND: noninteractive
         run: |
-          apt-get -o Acquire::Retries=2 -o Acquire::http::Timeout=20 -o Acquire::https::Timeout=20 update
-          apt-get -o Acquire::Retries=2 -o Acquire::http::Timeout=20 -o Acquire::https::Timeout=20 install -y --no-install-recommends gjs gir1.2-mutter-18 python3
+          bash .github/scripts/install-desktop-tools.sh gnome50
       - name: Check actual compositor API and Python startup
         run: |
           mutter_dir=$(python3 -c 'from pathlib import Path; print(next(Path("/usr/lib").glob("*/mutter-18/Meta-18.typelib")).parent)')
