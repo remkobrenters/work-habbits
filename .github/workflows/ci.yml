@@ -15,6 +15,10 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  gnome50:
+    name: GNOME 50 runtime
+    uses: ./.github/workflows/gnome50.yml
+
   quality:
     name: Quality
     runs-on: ubuntu-24.04

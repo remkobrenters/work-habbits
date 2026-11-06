@@ -1,6 +1,6 @@
 # work-habbits
 
-**v1.3.0** · [Release notes](docs/releases/v1.3.0.md)
+**v1.3.1** · [Release notes](docs/releases/v1.3.1.md)
 
 A small GNOME extension for desk posture, movement breaks, and keyboard/mouse activity. The top bar shows posture and hands progress bars; the menu keeps colored posture and hands cards, a habit score graph, and daily/weekly/monthly totals. Activity stays on your computer; there are no accounts, telemetry, HTTP clients, or remote control endpoints.
 
@@ -35,6 +35,8 @@ When a Wayland session needs input permission, the Hands card offers setup:
 ## Compatibility
 
 **Desktop-tested on Ubuntu 24.04 LTS, GNOME Shell 46, Xorg.** Other combinations below are expected to work from the documented APIs and compatibility checks; they have not been desktop-tested.
+
+GNOME Shell 50.1 also passes an isolated headless Shell test for native UI, permission explanation, generated input summaries, manual posture and pause/resume. Physical evdev input and actual administrator authorization still need a desktop check.
 
 | Setup | Status | Features |
 | --- | --- | --- |
@@ -196,6 +198,20 @@ Files have owner-only permissions and are replaced atomically every 30 seconds, 
 Bluetooth status and its command socket live in the owner-only `$XDG_RUNTIME_DIR/work-habbits` directory. Other programs running as your user are trusted and can access that user's data and local commands. SSH/TTY input does not count. A remote client mirroring the existing local desktop can see its indicators; injected input counts on Xorg, while Wayland counts are limited to the selected seat's Linux input devices.
 
 ## Troubleshooting and uninstall
+
+### GNOME 50 startup error in v1.3.0
+
+v1.3.0 calls `Meta.is_wayland_compositor()`, which GNOME 50 removed. This prevents the input helper from starting and stops menu updates; reinstalling v1.3.0 does not fix it. v1.3.1 handles the removed API and reports the actual cause of any later startup failure.
+
+Install v1.3.1 normally. If you need to restore an already-running v1.3.0 session without logging out, press **Alt+F2**, enter **lg**, and paste this into Looking Glass's evaluator:
+
+```javascript
+(() => { Meta.is_wayland_compositor = () => true; const e = Main.extensionManager.lookup('work-habbits@local').stateObj; e.disable(); e.enable(); })()
+```
+
+Press Enter, then Escape. This temporary compatibility shim restarts only Work Habbits in the current session; it does not restart GNOME Shell or close application windows. Choose **Enable Wayland input…** in the panel menu if permission is needed. The shim disappears at logout; the installed v1.3.1 code handles the next session without it. This recovery was verified against v1.3.0 in an isolated GNOME 50.1 session with generated input.
+
+### Diagnostics
 
 ```bash
 ./status.sh

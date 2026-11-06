@@ -245,7 +245,7 @@ test('the helper uses evdev on Wayland and RECORD on Xorg, with the configured h
     const launches = [];
     const reader = {get_stdout_pipe: () => ({}), wait_async() {}};
     Object.assign(gio, {Subprocess: {new: argv => { launches.push(argv); return reader; }},
-        SubprocessFlags: {STDOUT_PIPE: 1, STDERR_SILENCE: 2}, Cancellable: class {}, DataInputStream: class {}});
+        Cancellable: class { cancel() {} }, DataInputStream: class {}});
     glib.build_filenamev = parts => parts.join('/');
     try {
         for (const wayland of [true, false]) {
@@ -277,6 +277,63 @@ function setupApp() {
     app._tick = () => { state.ticks = (state.ticks || 0) + 1; };
     return {app, state};
 }
+
+test('GNOME 50 without the removed compositor API starts input and renders its permission action', () => {
+    const gio = dependencies['gi://Gio'];
+    const meta = dependencies['gi://Meta'];
+    const originalLaunch = gio.Subprocess.new;
+    const originalCheck = meta.is_wayland_compositor;
+    const launches = [];
+    const reader = {get_stdout_pipe: () => ({}), wait_async() {}};
+    delete meta.is_wayland_compositor;
+    gio.Subprocess.new = argv => { launches.push(argv); return reader; };
+    try {
+        const {app} = setupApp();
+        app._readInput = () => {};
+        app._startReader();
+        assert.equal(app._inputError ?? '', '', 'The missing API must not be mistaken for an unavailable helper');
+        assert.equal(app._reader, reader);
+        assert.equal(launches[0][0], '/usr/bin/python3');
+        assert.ok(launches[0].includes('--backend=evdev'));
+        app._paint(true, 0, 'manual', true);
+        assert.equal(app._inputSetupButton.visible, true);
+        app._offerInputSetup();
+        assert.equal(app._inputSetupDialog.opened, true);
+        app._inputSetupDialog.buttons.find(button => button.label === 'Enable').action();
+        assert.equal(launches[1][0], '/usr/bin/pkexec');
+    } finally {
+        gio.Subprocess.new = originalLaunch;
+        meta.is_wayland_compositor = originalCheck;
+    }
+});
+
+test('failed startup reports its cause and stops a partially started input helper', () => {
+    const gio = dependencies['gi://Gio'];
+    const originalLaunch = gio.Subprocess.new;
+    const originalStream = gio.DataInputStream;
+    const originalError = console.error;
+    let stopped = 0;
+    const errors = [];
+    gio.Subprocess.new = () => ({get_stdout_pipe: () => ({}), force_exit: () => stopped++});
+    gio.DataInputStream = class { constructor() { throw new Error('Native stream unavailable'); } };
+    console.error = message => errors.push(message);
+    try {
+        const {app} = setupApp();
+        app._inputSetupStatus = 'Input access enabled; checking devices…';
+        app._startReader();
+        assert.equal(stopped, 1);
+        assert.equal(app._reader, null);
+        assert.equal(app._eventsAvailable, false);
+        assert.match(app._inputError, /Native stream unavailable/);
+        app._paint(true, 0, 'manual', true);
+        assert.match(app._handsCard.hint.text, /Native stream unavailable/);
+        assert.equal(errors.length, 1);
+    } finally {
+        gio.Subprocess.new = originalLaunch;
+        gio.DataInputStream = originalStream;
+        console.error = originalError;
+    }
+});
 
 test('Wayland permission failures offer setup without ever starting authorization automatically', () => {
     const {app} = setupApp();

@@ -1,7 +1,7 @@
 PYTHON ?= .venv/bin/python
 RUFF ?= .venv/bin/ruff
 
-.PHONY: check lint test audit security-lint dist
+.PHONY: check lint test test-gnome audit security-lint dist
 check: lint security-lint test
 
 lint:
@@ -24,6 +24,9 @@ test:
 	TZ=America/New_York node tests/history.test.mjs
 	gjs -m tests/settings.test.js
 	gjs -m tests/storage.test.js
+
+test-gnome:
+	$(PYTHON) scripts/check_gnome_shell.py
 
 audit:
 	$(PYTHON) -m pip_audit --strict -r requirements-dev.txt

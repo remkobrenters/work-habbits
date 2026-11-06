@@ -1,12 +1,18 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {SETTINGS, WellnessModel, deskState, isFreshHeartbeat, isLocalDesktop, isLocalSession,
+import {SETTINGS, WellnessModel, deskState, isFreshHeartbeat, isLocalDesktop, isLocalSession, isWayland,
     preferencesProblem, preferencesOf, configure} from '../extension/logic.js';
 
 const now = 1_000_000;
 const tick = (model, overrides = {}, cfg = SETTINGS) => model.update({dt: 1, wallMs: now, localActive: true,
     deskReady: true, position: 'sitting', idleSeconds: 0, inputAvailable: true, ...overrides}, cfg);
 const batch = (overrides = {}) => ({keys: 1, clicks: 2, moves: 3, lastInputWallMs: now, ...overrides});
+
+test('compositor detection supports Xorg and Wayland before GNOME 50 and its removed API', () => {
+    assert.equal(isWayland({is_wayland_compositor: () => false}), false);
+    assert.equal(isWayland({is_wayland_compositor: () => true}), true);
+    assert.equal(isWayland({}), true);
+});
 
 test('all desk modes are explicit, unavailable Bluetooth never appears healthy', () => {
     assert.deepEqual(deskState('manual', 'standing', null, now), {ready: true, position: 'standing'});

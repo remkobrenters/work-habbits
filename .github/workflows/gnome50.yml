@@ -1,0 +1,29 @@
+name: GNOME 50 runtime
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  native-api:
+    name: Native Meta and GIO APIs
+    runs-on: ubuntu-24.04
+    container: ubuntu:26.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install GNOME 50 runtime libraries
+        timeout-minutes: 6
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        run: |
+          apt-get -o Acquire::Retries=2 -o Acquire::http::Timeout=20 -o Acquire::https::Timeout=20 update
+          apt-get -o Acquire::Retries=2 -o Acquire::http::Timeout=20 -o Acquire::https::Timeout=20 install -y --no-install-recommends gjs gir1.2-mutter-18 python3
+      - name: Check actual compositor API and Python startup
+        run: |
+          mutter_dir=$(python3 -c 'from pathlib import Path; print(next(Path("/usr/lib").glob("*/mutter-18/Meta-18.typelib")).parent)')
+          GI_TYPELIB_PATH="$mutter_dir" LD_LIBRARY_PATH="$mutter_dir" gjs -m tests/gnome-platform.test.js
