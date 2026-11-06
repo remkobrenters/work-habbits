@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Count local X11 input, emitting only anonymous one-second summaries to GNOME.
+"""Count local input, emitting only anonymous one-second summaries to GNOME.
 
 GNOME owns this process and discards summaries outside the active local desktop session.
 Keycodes are only compared with the media keys and Super+L, which are not hand work.
@@ -71,34 +71,40 @@ class InputCounter:
         with self._lock:
             for offset in range(0, len(data) - 31, 32):
                 event_type, detail = data[offset], data[offset + 1]
-                if event_type in (2, 3) and detail in self._supers:
-                    # Super is a shortcut modifier, not typing; while it is held, L locks the screen.
-                    if event_type == 2:
-                        self._supers_down.add(detail)
-                    else:
-                        self._supers_down.discard(detail)
-                    continue
-                if event_type == 2 and (
-                    detail in self._media or (self._supers_down and detail in self._screen_lock)
-                ):
-                    continue
-                if event_type == 6:
-                    # Pointer motion alone is not hand work: sampled for the daily count only.
-                    if monotonic - self._last_motion >= 0.2:
-                        self._counts['moves'] += 1
-                        self._last_motion = monotonic
-                    continue
-                if event_type not in (2, 4):  # KeyPress, ButtonPress
-                    continue
-                if self._last_input and monotonic - self._last_input >= self._break_seconds:
-                    self._had_break = True
-                self._last_input = monotonic
-                self._last_wall = wall
-                if event_type == 2:
-                    self._counts['keys'] += 1
-                # Wheel steps are activity but are not mouse clicks.
-                elif detail not in (4, 5, 6, 7):
-                    self._counts['clicks'] += 1
+                self._consume_event(event_type, detail, monotonic, wall)
+
+    def consume_event(self, event_type: int, detail: int, monotonic: float, wall: float) -> None:
+        # Both backends reduce input to key press/release, button press, or motion.
+        with self._lock:
+            self._consume_event(event_type, detail, monotonic, wall)
+
+    def _consume_event(self, event_type: int, detail: int, monotonic: float, wall: float) -> None:
+        if event_type in (2, 3) and detail in self._supers:
+            # Super is a shortcut modifier, not typing; while it is held, L locks the screen.
+            if event_type == 2:
+                self._supers_down.add(detail)
+            else:
+                self._supers_down.discard(detail)
+            return
+        if event_type == 2 and (detail in self._media or (self._supers_down and detail in self._screen_lock)):
+            return
+        if event_type == 6:
+            # Pointer motion alone is not hand work: sampled for the daily count only.
+            if monotonic - self._last_motion >= 0.2:
+                self._counts['moves'] += 1
+                self._last_motion = monotonic
+            return
+        if event_type not in (2, 4):  # KeyPress, ButtonPress
+            return
+        if self._last_input and monotonic - self._last_input >= self._break_seconds:
+            self._had_break = True
+        self._last_input = monotonic
+        self._last_wall = wall
+        if event_type == 2:
+            self._counts['keys'] += 1
+        # Wheel steps are activity but are not mouse clicks.
+        elif detail not in (4, 5, 6, 7):
+            self._counts['clicks'] += 1
 
     def snapshot(self, *, ready: bool) -> dict:
         with self._lock:
@@ -120,14 +126,25 @@ def local_display(value: str) -> bool:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description='Anonymous X11 input summaries for work-habbits')
+    parser = argparse.ArgumentParser(description='Anonymous local input summaries for work-habbits')
+    parser.add_argument('--backend', choices=('x11', 'evdev'), default='x11')
     parser.add_argument(
         '--break-seconds', type=int, default=BREAK_SECONDS, help='this long without input ends a hand break'
     )
     args = parser.parse_args()
     if not 60 <= args.break_seconds <= 1800:
         parser.error('--break-seconds must be between 60 and 1800')
-    if os.environ.get('SSH_CONNECTION') or not local_display(os.getenv('DISPLAY', '')):
+    if os.environ.get('SSH_CONNECTION') or os.environ.get('SSH_TTY'):
+        print(json.dumps({'ready': False, 'error': 'A local desktop is required'}), flush=True)
+        return 1
+    if args.backend == 'evdev':
+        from wayland_input import run
+
+        return run(args.break_seconds)
+    if os.getenv('XDG_SESSION_TYPE') == 'wayland':
+        print(json.dumps({'ready': False, 'error': 'Use --backend=evdev on Wayland'}), flush=True)
+        return 1
+    if not local_display(os.getenv('DISPLAY', '')):
         print(json.dumps({'ready': False, 'error': 'A local X11 desktop is required'}), flush=True)
         return 1
 

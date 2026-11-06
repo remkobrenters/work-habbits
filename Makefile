@@ -11,7 +11,7 @@ lint:
 	shellcheck install.sh status.sh uninstall.sh
 	@for file in extension/*.js tests/*.js tests/*.mjs scripts/*.mjs; do node --check "$$file"; done
 	glib-compile-schemas --strict --dry-run extension/schemas
-	$(PYTHON) -m compileall -q desk_monitor.py desk_service.py input_monitor.py tests scripts
+	$(PYTHON) -m compileall -q desk_monitor.py desk_service.py input_monitor.py wayland_input.py wayland_setup.py tests scripts
 
 test:
 	$(PYTHON) -m unittest discover -s tests -v
@@ -29,7 +29,7 @@ audit:
 	$(PYTHON) -m pip_audit --strict -r requirements-dev.txt
 
 security-lint:
-	$(RUFF) check --select S desk_monitor.py desk_service.py input_monitor.py scripts
+	$(RUFF) check --select S desk_monitor.py desk_service.py input_monitor.py wayland_input.py wayland_setup.py scripts
 
 dist:
 	$(PYTHON) scripts/package.py

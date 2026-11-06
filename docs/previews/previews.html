@@ -159,5 +159,20 @@
   <path d="m299.65 263.01c-1.6024 0.11249-3.1219 0.99052-3.9824 2.4824-1.3769 2.3871-0.55308 5.4534 1.8359 6.834 2.389 1.3806 5.4532 0.56088 6.8301-1.8262 1.3769-2.3871 0.55308-5.4514-1.8359-6.832-0.89588-0.51773-1.8862-0.72569-2.8476-0.65821zm0.35156 0.98633a4 4 0 0 1 4 4 4 4 0 0 1-4 4 4 4 0 0 1-4-4 4 4 0 0 1 4-4z"/>
  </g></svg></div>
 </div></div></section>
+<section id="menu-wayland-setup"></section>
+<script>
+// The setup scene uses the same sample menu and only changes the unavailable Hands card.
+const setupMenu = document.querySelector('#menu-dark > .menu').cloneNode(true);
+const setupHands = setupMenu.querySelectorAll('.card')[1];
+setupHands.querySelector('.big').textContent = '0m';
+setupHands.querySelector('.big').style.color = 'var(--gray)';
+setupHands.querySelector('.fill').style.width = '0%';
+setupHands.lastElementChild.textContent = 'Input permission needed; choose Enable Wayland input below';
+const setupButton = document.createElement('div');
+setupButton.className = 'button start';
+setupButton.textContent = 'Enable Wayland input…';
+setupHands.append(setupButton);
+document.querySelector('#menu-wayland-setup').append(setupMenu);
+</script>
 </body>
 </html>

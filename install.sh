@@ -6,7 +6,7 @@ fail() { printf '%s\n' "$*" >&2; exit 1; }
 BLUETOOTH=0
 case ${1:-} in
     --bluetooth) BLUETOOTH=1 ;;
-    --help|-h) printf 'Usage: ./install.sh [--bluetooth]\nInstall work-habbits for GNOME 46–50 (input counts require Xorg). No sudo.\n'; exit 0 ;;
+    --help|-h) printf 'Usage: ./install.sh [--bluetooth]\nInstall work-habbits for GNOME 46–50 on Xorg or Wayland. No sudo.\nWayland input setup is offered in the panel menu when needed.\n'; exit 0 ;;
     '') ;;
     *) fail 'Usage: ./install.sh [--bluetooth]' ;;
 esac
@@ -17,7 +17,7 @@ esac
 if [[ $XDG_SESSION_TYPE == x11 ]]; then
     [[ ${DISPLAY:-} =~ ^:[0-9]+(\.[0-9]+)?$ ]] || fail 'A local X11 DISPLAY is required.'
 else
-    printf 'Wayland: posture and movement reminders are available; keyboard/mouse counts require Xorg.\n'
+    printf 'Wayland input setup: choose Enable Wayland input in the panel menu if permission is needed.\n'
 fi
 SHELL_VERSION=$(gnome-shell --version)
 [[ $SHELL_VERSION =~ ^GNOME\ Shell\ (46|47|48|49|50)(\.|$) ]] || fail 'Expected GNOME Shell 46–50. See README compatibility notes.'
@@ -36,7 +36,12 @@ APP="$HOME/.local/share/work-habbits"
 EXT="${XDG_DATA_HOME:-$HOME/.local/share}/gnome-shell/extensions/work-habbits@local"
 UNIT="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
 install -d -m 0700 "$APP"
-if [[ ! -x $APP/.venv/bin/python ]]; then
+# Repair environments whose system Python changed during a distribution upgrade.
+# Retain a previous explicit Bluetooth installation when its packages need rebuilding.
+for bluetooth_package in "$APP"/.venv/lib/python*/site-packages/bleak; do
+    if [[ -d $bluetooth_package ]]; then BLUETOOTH=1; fi
+done
+if [[ ! -x $APP/.venv/bin/python ]] || ! "$APP/.venv/bin/python" -m pip --version >/dev/null 2>&1; then
     /usr/bin/python3 -m venv "$APP/.venv" || fail 'Install python3-venv first.'
 fi
 "$APP/.venv/bin/python" -m pip install --disable-pip-version-check --no-input -r "$HERE/requirements.txt"
@@ -52,7 +57,7 @@ if gnome-extensions info work-habbits@local >/dev/null 2>&1; then
 fi
 systemctl --user stop work-habbits-desk.service 2>/dev/null || true
 install -d "$EXT" "$EXT/icons" "$EXT/sounds" "$EXT/schemas" "$APP/schemas" "$UNIT"
-install -m 0644 "$HERE/desk_monitor.py" "$HERE/desk_service.py" "$HERE/input_monitor.py" "$APP/"
+install -m 0644 "$HERE/desk_monitor.py" "$HERE/desk_service.py" "$HERE/input_monitor.py" "$HERE/wayland_input.py" "$HERE/wayland_setup.py" "$APP/"
 install -m 0644 "$HERE/work-habbits-desk.service" "$UNIT/work-habbits-desk.service"
 install -m 0644 "$HERE/extension/"*.js "$HERE/extension/stylesheet.css" "$HERE/extension/metadata.json" "$EXT/"
 install -m 0644 "$HERE/extension/schemas/"*.gschema.xml "$EXT/schemas/"

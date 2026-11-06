@@ -25,6 +25,9 @@ FILES = [
     'desk_monitor.py',
     'desk_service.py',
     'input_monitor.py',
+    'wayland_input.py',
+    'wayland_setup.py',
+    '70-work-habbits-input.rules',
 ]
 DIRECTORIES = ['extension', 'tests', 'scripts', '.github', 'docs']
 
