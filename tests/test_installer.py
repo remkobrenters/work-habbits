@@ -133,6 +133,8 @@ esac
             self.assertTrue((extension / 'schemas/gschemas.compiled').is_file())
             self.assertTrue((app / 'schemas/gschemas.compiled').is_file())
             self.assertTrue((app / 'desk_service.py').is_file())
+            self.assertTrue((app / 'wayland_input.py').is_file())
+            self.assertTrue((app / 'wayland_setup.py').is_file())
             self.assertEqual(app.stat().st_mode & 0o777, 0o700)
             unit = root / 'config/systemd/user/work-habbits-desk.service'
             self.assertTrue(unit.is_file())
@@ -149,9 +151,40 @@ esac
             calls = (root / 'commands').read_text()
             self.assertNotIn('example-app', calls)
             self.assertNotIn('example-extension', calls)
+            if session_type == 'wayland':
+                self.assertIn('Wayland input setup', installed.stdout)
 
 
 class InstallerGuardTests(unittest.TestCase):
+    def test_reinstall_repairs_missing_pip_after_a_python_upgrade_and_preserves_bluetooth(self):
+        installer = Path(__file__).resolve().parents[1] / 'install.sh'
+        block = installer.read_text().split('# Repair environments', 1)[1]
+        block = '# Repair environments' + block.split('"$APP/.venv/bin/python" -m pip install', 1)[0]
+        with tempfile.TemporaryDirectory() as directory:
+            app = Path(directory) / 'app'
+            subprocess.run(
+                ['/usr/bin/python3', '-m', 'venv', '--without-pip', str(app / '.venv')],
+                check=True,
+                capture_output=True,
+                timeout=20,
+            )
+            (app / '.venv/lib/python3.11/site-packages/bleak').mkdir(parents=True)
+            result = subprocess.run(
+                ['bash', '-c', 'fail() { exit 1; }\nBLUETOOTH=0\n' + block + '\n[[ $BLUETOOTH == 1 ]]'],
+                env={**os.environ, 'APP': str(app)},
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            repaired = subprocess.run(
+                [str(app / '.venv/bin/python'), '-m', 'pip', '--version'],
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
+            self.assertEqual(repaired.returncode, 0, repaired.stderr)
+
     def test_help_and_invalid_options_never_require_a_desktop(self):
         installer = Path(__file__).resolve().parents[1] / 'install.sh'
         for args, expected in [(['--help'], 0), (['--unknown'], 1), (['--bluetooth', 'extra'], 1)]:

@@ -1,6 +1,6 @@
 # work-habbits
 
-**v1.2.0** · [Release notes](docs/releases/v1.2.0.md)
+**v1.3.0** · [Release notes](docs/releases/v1.3.0.md)
 
 A small GNOME extension for desk posture, movement breaks, and keyboard/mouse activity. The top bar shows posture and hands progress bars; the menu keeps colored posture and hands cards, a habit score graph, and daily/weekly/monthly totals. Activity stays on your computer; there are no accounts, telemetry, HTTP clients, or remote control endpoints.
 
@@ -18,7 +18,7 @@ Posture and Hands each show a label, a bar that fills toward the next change, an
 
 | Snoozed | Hands unavailable | Optional icons |
 | --- | --- | --- |
-| ![Steady orange Posture bar while snoozed, 14 minutes 12 seconds left](docs/previews/panel-snoozed.png) | ![Gray, empty Hands bar with a dash, as on Wayland without input counts](docs/previews/panel-unavailable.png) | ![Standing figure and keyboard icons colored like their bars in green, orange and red](docs/previews/panel-icons.png) |
+| ![Steady orange Posture bar while snoozed, 14 minutes 12 seconds left](docs/previews/panel-snoozed.png) | ![Gray, empty Hands bar with a dash when input access is unavailable](docs/previews/panel-unavailable.png) | ![Standing figure and keyboard icons colored like their bars in green, orange and red](docs/previews/panel-icons.png) |
 
 ### Menu
 
@@ -28,6 +28,10 @@ The menu brings posture and hand reminders, the habit score, and activity totals
 | --- | --- |
 | [![Menu in a light theme: habit score, a red posture card with its penalty countdown, hands progress, snooze button and activity totals](docs/previews/menu-light.png)](docs/previews/menu-light.png) | [![Menu in a dark theme: habit score, a red posture card with its penalty countdown, hands progress, snooze button and activity totals](docs/previews/menu-dark.png)](docs/previews/menu-dark.png) |
 
+When a Wayland session needs input permission, the Hands card offers setup:
+
+[![Rendered menu with an unavailable Hands card and Enable Wayland input button](docs/previews/menu-wayland-setup.png)](docs/previews/menu-wayland-setup.png)
+
 ## Compatibility
 
 **Desktop-tested on Ubuntu 24.04 LTS, GNOME Shell 46, Xorg.** Other combinations below are expected to work from the documented APIs and compatibility checks; they have not been desktop-tested.
@@ -36,10 +40,10 @@ The menu brings posture and hand reminders, the habit score, and activity totals
 | --- | --- | --- |
 | Ubuntu 24.04 LTS, GNOME 46, Xorg | Tested | Posture, movement breaks, typing and clicking counts |
 | GNOME 46–48 on Xorg, other Linux distributions | Expected; untested | Same features, with the prerequisites below |
-| GNOME 46–50 on Wayland, including Ubuntu 26.04 LTS / GNOME 50 | Expected; untested | Posture and movement breaks; **no typing/clicking counts or automatic hand reminders** |
+| GNOME 46–50 on Wayland, including Ubuntu 26.04 LTS / GNOME 50 | Implemented; desktop verification pending | Posture, movement breaks, physical keyboard/mouse counts and hand reminders; [input access setup](#wayland-input-setup) required for counts |
 | Other GNOME versions; KDE, Xfce, MATE; Windows/macOS | Not supported | Contributions welcome |
 
-Requirements: Python 3.11+, GTK 4 with libadwaita 1.4+ bindings, GSettings, a local GNOME graphical session, and systemd user services. Optional Bluetooth requires BlueZ 5.55+ and a compatible desk. Input counts additionally require a full Xorg session with X11 RECORD; XWayland cannot provide complete desktop input counts.
+Requirements: Python 3.11+, GTK 4 with libadwaita 1.4+ bindings, GSettings, a local GNOME graphical session, and systemd user services. Optional Bluetooth requires BlueZ 5.55+ and a compatible desk. Xorg input counts use X11 RECORD. Wayland input counts use Linux evdev with explicitly granted device access; graphical setup uses polkit's `pkexec` and udev. XWayland is never used for counts.
 
 The compatibility assessment follows the [GNOME 47](https://gjs.guide/extensions/upgrading/gnome-shell-47.html), [48](https://gjs.guide/extensions/upgrading/gnome-shell-48.html), [49](https://gjs.guide/extensions/upgrading/gnome-shell-49.html), and [50](https://gjs.guide/extensions/upgrading/gnome-shell-50.html) porting guides. Ubuntu 26.04 ships [GNOME 50 on Wayland](https://documentation.ubuntu.com/release-notes/26.04/changes-since-previous-interim/); upstream GNOME 50 removes the X11 session. The extension handles both widget-orientation and theme-color APIs used across these versions.
 
@@ -53,7 +57,7 @@ Please submit a **pull request** with improvements, fixes, or compatibility resu
 | **Bluetooth** | Read height and explicitly raise/lower a TiMOTION TWD1-compatible Nordic UART desk. Requires its Bluetooth address. |
 | **Disabled** | For a fixed desk. Select **Start movement break** before a walk, then **Back at desk** when you return. No desk commands. |
 
-Input counts work independently of Bluetooth availability on Xorg. Pausing **Tracking** stops input collection and the Bluetooth helper. On Wayland, the hands indicator explains that input counts need Xorg.
+Input counts work independently of Bluetooth availability on Xorg and Wayland. Pausing **Tracking** stops input collection and the Bluetooth helper. On Wayland, the hands indicator explains when input access setup is needed; posture and movement reminders remain available without it.
 
 ## Install
 
@@ -71,7 +75,9 @@ From the checkout:
 
 For optional Bluetooth support, use `./install.sh --bluetooth` instead, or run it later. Python packages stay in the application's virtual environment: `python-xlib` and `six`, plus `bleak` and `dbus-fast` with Bluetooth enabled. There is no JavaScript dependency installation or build framework.
 
-Log out and back in to load the extension. On Xorg, **Alt+F2 → restart → Enter** also reloads Shell. Updated JavaScript modules need a Shell reload. Wayland does not support an in-place Shell restart.
+Wayland input tracking uses system Python and keeps working if a distribution upgrade changes the Python version. If optional Bluetooth dependencies need rebuilding after an upgrade, rerun `./install.sh`. It repairs an environment with missing pip and reinstalls dependencies for the current Python, preserving a previous Bluetooth installation.
+
+Log out and back in to load the extension. On Xorg, **Alt+F2 → restart → Enter** also reloads Shell. Updated JavaScript modules need a new Shell process; disabling and re-enabling the extension does not reload cached code. Wayland does not support an in-place Shell restart that preserves open windows. You can install the update while working and defer logout until convenient; it loads at your next login. Do not force a Shell restart while you need to keep your current windows.
 
 Open **Settings** in the panel menu to select a desk mode, adjust heights, reminder times and the reminder sound and its volume, or reset defaults. Settings survive reinstalls. New installations and reset defaults use manual mode; Bluetooth is opt-in.
 
@@ -83,6 +89,46 @@ Installation paths:
 - Preferences: GSettings schema `org.gnome.shell.extensions.work-habbits`
 
 Install/uninstall manage only work-habbits. Other applications, extensions, services, settings, and history stay untouched. Only one application should control a physical Bluetooth desk at a time. work-habbits can use an existing connection to the configured desk, including one made through GNOME Bluetooth or `bluetoothctl`. It does not force a disconnect before attaching. While tracking, its Bluetooth client manages that connection and releases it when stopped.
+
+### Wayland input setup
+
+Once this version is installed, switching from Xorg to Wayland automatically selects the Wayland backend. The tool detects missing input permission and offers **Enable Wayland input…** in the panel menu's Hands card:
+
+1. Open the panel menu and choose **Enable Wayland input…**.
+2. Review the permission explanation, choose **Enable**, and approve GNOME's administrator dialog.
+3. Input counts and hand reminders resume automatically. This permission step needs no terminal commands, logout, or reboot.
+
+Cancelling keeps posture and movement reminders working and leaves the setup action available; it never opens repeated authorization prompts. Permission setup is only offered for access failures, not when a device is disconnected. The new version must be installed once; older versions do not update themselves.
+
+Wayland counts use physical keyboard, mouse and touchpad events from Linux evdev, across native Wayland and XWayland applications. Mutter consumes application input before extension event filters and Shell actor signals can observe it ([Mutter event handling](https://github.com/GNOME/mutter/blob/50.1/src/core/events.c), [Clutter filter ordering](https://github.com/GNOME/mutter/blob/50.1/clutter/clutter/clutter-event.c)); listening only to the Shell would miss activity in applications.
+
+Linux restricts access to these devices. The optional rule grants the active local seat user access to keyboards, mice and touchpads through systemd's `uaccess` ACLs. **Other programs running as that user gain raw input access too, including password-field input.** Locking does not revoke those ACLs; work-habbits itself closes its readers and discards summaries when locked or outside the active local session. Enable it only if you accept that permission change. The normal installer never changes system input permissions, adds you to the `input` group, or runs a root input reader.
+
+After explicit approval, a short-lived setup helper installs only the fixed `70-work-habbits-input.rules` file, reloads udev, and applies access to current devices. It preserves conflicting rules and uses [polkit's normal administrator authorization](https://polkit.pages.freedesktop.org/polkit/pkexec.1.html); there is no passwordless policy or background root service. Reconnected keyboards and mice receive the same active-seat access automatically. Missing permissions or disconnected devices are retried; incomplete device coverage disables hand reminders instead of presenting partial counts as complete.
+
+<details>
+<summary>Manual fallback if graphical authorization is unavailable</summary>
+
+Install your distribution's `pkexec` package to use the menu action, or apply the same rule from this checkout:
+
+```bash
+sudo install -m 0644 70-work-habbits-input.rules /etc/udev/rules.d/70-work-habbits-input.rules
+sudo udevadm control --reload-rules
+sudo udevadm trigger --action=change --subsystem-match=input
+```
+
+</details>
+
+Counts describe device activity before compositor remapping. Physical mouse buttons count as clicks, including side buttons. Software-generated events (such as the on-screen keyboard), touchpad tap-to-click, and compositor-generated clicks are not counted as physical clicks. Touchpad contact and finger motion count as hand activity, so gestures keep the hand timer running; ordinary mouse motion alone still does not. The media-key and Super+L exclusions use Linux physical key codes on Wayland.
+
+To revoke the optional permission, remove this application's rule, reload the rules, then reboot to close existing device descriptors and reset ACLs:
+
+```bash
+sudo rm /etc/udev/rules.d/70-work-habbits-input.rules
+sudo udevadm control --reload-rules
+```
+
+The user-level uninstaller leaves this optional system rule in place. Remove it separately if you enabled it.
 
 ## Reminders and counts
 
@@ -99,7 +145,7 @@ Orange is silent. When a reminder turns red, a sound plays and repeats every 15 
 
 Sitting/standing activity totals accumulate while the local desktop is active and idle time is below 60 seconds. A standing break continues without input while the local session is unlocked. A marked walk continues while locked, but pauses when tracking is disabled or the login becomes inactive. Mark your return explicitly; manual posture is your report, not sensor data.
 
-The hand timer runs while input happened within the last 10 seconds. Typing, clicks, and scrolling indicate activity; wheel steps are not clicks. Pointer movement is sampled at most five times per second and does not restart hand activity. Media keys and Super+L do not end a hand break. Key auto-repeat counts as presses.
+The hand timer runs while input happened within the last 10 seconds. Typing, clicks, and scrolling indicate activity; wheel steps are not clicks. Pointer movement is sampled at most five times per second; ordinary mouse motion does not restart hand activity. Wayland touchpad contact and finger motion also indicate hand activity. Media keys and Super+L do not end a hand break. Device key auto-repeat counts as presses.
 
 Locking, switching users/TTYs, and remote sessions stop input collection. A Bluetooth disconnect pauses sensor-based posture timers. Suspend and process downtime never count as inferred activity. Daily totals and reminder progress persist across extension restarts and start anew each local calendar day.
 
@@ -133,7 +179,7 @@ Keep the travel path clear and stay at the desk. A failed Bluetooth link can pre
 
 ## Privacy and history
 
-The X11 RECORD helper receives device events across applications, including password fields, and reduces them in memory to counts and an activity timestamp. It never emits or stores typed text, keycodes, passwords, window titles, or pointer coordinates. Raw event buffers are not logged. One-second summaries travel over a private process pipe.
+The input helper receives X11 RECORD events on Xorg or Linux evdev events on Wayland, including input in password fields, and reduces them in memory to counts and an activity timestamp. It never emits or stores typed text, keycodes, passwords, window titles, or pointer coordinates. Raw event buffers are not logged. One-second summaries travel over a private process pipe. The Wayland reader checks logind session ownership, active state, lock state and seat before opening devices and again before publishing summaries; the extension separately enforces its own session and tracking checks.
 
 One aggregate JSON file per local calendar day lives in:
 
@@ -147,7 +193,7 @@ Records contain sitting/standing/away seconds, key/click/movement counts, remind
 
 Files have owner-only permissions and are replaced atomically every 30 seconds, on day rollover, and when the extension is disabled. Abrupt shutdown may lose the unsaved interval. Failed saves are retried; unreadable records are reported and preserved. Records remain until you delete them. Back up the directory yourself. Startup cost grows with retained daily records.
 
-Bluetooth status and its command socket live in the owner-only `$XDG_RUNTIME_DIR/work-habbits` directory. Other programs running as your user are trusted and can access that user's data and local commands. SSH/TTY input does not count. A remote client mirroring the existing local desktop can see its indicators and inject indistinguishable input.
+Bluetooth status and its command socket live in the owner-only `$XDG_RUNTIME_DIR/work-habbits` directory. Other programs running as your user are trusted and can access that user's data and local commands. SSH/TTY input does not count. A remote client mirroring the existing local desktop can see its indicators; injected input counts on Xorg, while Wayland counts are limited to the selected seat's Linux input devices.
 
 ## Troubleshooting and uninstall
 
@@ -159,7 +205,7 @@ journalctl --user -u work-habbits-desk.service -n 30 --no-pager
 
 Diagnostic output can include local paths, Bluetooth addresses, and activity totals; inspect it before sharing. Bluetooth status being absent/stale is normal in manual/disabled mode. The service runs a settings watcher; a running service does not imply a connected desk. The panel shows live totals; disk snapshots update every 30 seconds.
 
-Reinstall/reload for missing helpers. Verify typing and clicking increase counts on Xorg, then confirm two minutes of rest resets the hand timer. Check manual posture toggles, pause/resume before testing Bluetooth with clear travel space and an accessible handset. Simulated tests cannot certify hardware behavior.
+Reinstall/reload for missing helpers. On Wayland, choose **Enable Wayland input…** if the Hands card reports missing access. If setup fails, verify that `pkexec` and udev are installed and that `/etc/udev/rules.d/70-work-habbits-input.rules` has not been replaced with a custom file or symlink; setup preserves those rather than overwriting them. Verify typing and clicking increase counts in both a native Wayland app and an XWayland app, then confirm two minutes of rest resets the hand timer. Check lock/unlock, pause/resume, keyboard/mouse reconnects and manual posture toggles before testing Bluetooth with clear travel space and an accessible handset. Simulated tests cannot certify hardware behavior.
 
 Uninstall with `./uninstall.sh`. History and preferences remain. To reset preferences while installed:
 

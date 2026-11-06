@@ -23,7 +23,7 @@ export default class WorkHabbitsPreferences extends ExtensionPreferences {
             return row;
         };
         const general = new Adw.PreferencesGroup({title: 'Tracking',
-            description: 'Posture reminders on Xorg or Wayland. Keyboard/mouse counts require Xorg. Turning tracking off pauses input collection, posture timers, reminders and the Bluetooth helper. History is kept.'});
+            description: 'Posture and hand reminders on Xorg or Wayland. If Wayland input needs permission, choose Enable Wayland input in the panel menu. Turning tracking off pauses input collection, posture timers, reminders and the Bluetooth helper. History is kept.'});
         page.add(general);
         switchRow(general, 'tracking-enabled', 'Enable tracking');
         switchRow(general, 'panel-icons', 'Show icons in the top bar');

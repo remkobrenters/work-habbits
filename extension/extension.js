@@ -6,6 +6,8 @@ import GLib from 'gi://GLib';
 import Meta from 'gi://Meta';
 import St from 'gi://St';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
+import * as Dialog from 'resource:///org/gnome/shell/ui/dialog.js';
+import * as ModalDialog from 'resource:///org/gnome/shell/ui/modalDialog.js';
 import * as LoginManager from 'resource:///org/gnome/shell/misc/loginManager.js';
 import * as PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js';
 import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js';
@@ -203,6 +205,10 @@ export default class WorkHabbitsExtension extends Extension {
         this._inputHeartbeat = 0;
         this._eventsAvailable = false;
         this._inputError = '';
+        this._inputSetupNeeded = false;
+        this._inputSetupStatus = '';
+        this._inputSetupDialog = null;
+        this._inputSetupProcess = null;
         this._nextReaderAttempt = 0;
         this._socketCancel = new Gio.Cancellable();
         this._sound = new Sound(this.path, message => {
@@ -325,6 +331,10 @@ export default class WorkHabbitsExtension extends Extension {
         this._deskButton.connect('clicked', () => this._deskAction());
         this._postureCard.body.add_child(this._deskButton);
         this._handsCard = card('Hands');
+        this._inputSetupButton = new St.Button({label: 'Enable Wayland input…', visible: false,
+            style_class: 'button wh-desk-button', x_align: Clutter.ActorAlign.START});
+        this._inputSetupButton.connect('clicked', () => this._offerInputSetup());
+        this._handsCard.body.add_child(this._inputSetupButton);
         this._snoozeButton = new St.Button({label: 'Snooze — leaving soon', style_class: 'button wh-desk-button'});
         this._snoozeButton.connect('clicked', () => {
             if (!this._localSession() || !this._settings.get_boolean('tracking-enabled')) return;
@@ -405,8 +415,11 @@ export default class WorkHabbitsExtension extends Extension {
         this._nextReaderAttempt = Date.now() + 15000;
         try {
             const reader = Gio.Subprocess.new([
-                GLib.build_filenamev([this._appDir, '.venv', 'bin', 'python']),
+                // Wayland's standard-library backend survives system Python upgrades.
+                Meta.is_wayland_compositor() ? '/usr/bin/python3'
+                    : GLib.build_filenamev([this._appDir, '.venv', 'bin', 'python']),
                 GLib.build_filenamev([this._appDir, 'input_monitor.py']),
+                `--backend=${Meta.is_wayland_compositor() ? 'evdev' : 'x11'}`,
                 `--break-seconds=${SETTINGS.inputResetIdle}`,
             ], Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_SILENCE);
             this._reader = reader;
@@ -443,6 +456,8 @@ export default class WorkHabbitsExtension extends Extension {
                 this._eventsAvailable = batch.ready === true && isFreshHeartbeat(batch.heartbeat, Date.now(), 5);
                 this._inputHeartbeat = batch.heartbeat;
                 this._inputError = batch.error || '';
+                this._inputSetupNeeded = batch.errorCode === 'input-permission';
+                if (this._eventsAvailable) this._inputSetupStatus = '';
                 if (this._eventsAvailable && this._localSession() && this._settings.get_boolean('tracking-enabled')) {
                     this._rollDay(localDate());
                     this._model.onInputBatch(batch);
@@ -468,15 +483,76 @@ export default class WorkHabbitsExtension extends Extension {
         if (terminate) reader?.force_exit();
         this._eventsAvailable = false;
         this._inputHeartbeat = 0;
+        this._inputSetupNeeded = false;
+    }
+
+    _offerInputSetup() {
+        if (!this._localSession() || !this._settings.get_boolean('tracking-enabled') ||
+            !Meta.is_wayland_compositor() || !this._inputSetupNeeded ||
+            this._inputSetupDialog || this._inputSetupProcess) return;
+        this._indicator.menu.close();
+        const dialog = new ModalDialog.ModalDialog({shouldFadeOut: false});
+        this._inputSetupDialog = dialog;
+        dialog.contentLayout.add_child(new Dialog.MessageDialogContent({
+            title: 'Enable Wayland input tracking?',
+            description: 'Allow Work Habbits to count keyboard and mouse activity on this desktop. ' +
+                'This also gives other programs running as the active desktop user raw input access, ' +
+                'including input in password fields. The permission remains while the screen is locked; ' +
+                'Work Habbits itself stops tracking while locked.\n\n' +
+                'Administrator approval is required once. Tracking resumes automatically afterward.',
+        }));
+        dialog.connect('destroy', () => {
+            if (this._inputSetupDialog === dialog) this._inputSetupDialog = null;
+        });
+        dialog.setButtons([
+            {label: 'Cancel', key: Clutter.KEY_Escape, default: true, action: () => dialog.close()},
+            {label: 'Enable', action: () => {
+                dialog.close();
+                this._authorizeInputSetup();
+            }},
+        ]);
+        if (!dialog.open()) dialog.destroy();
+    }
+
+    _authorizeInputSetup() {
+        if (!this._localSession() || !this._settings.get_boolean('tracking-enabled') ||
+            !Meta.is_wayland_compositor() || this._inputSetupProcess) return;
+        this._inputSetupStatus = 'Waiting for administrator approval…';
+        try {
+            const process = Gio.Subprocess.new([
+                '/usr/bin/pkexec', '--disable-internal-agent', '/usr/bin/python3', '-I',
+                GLib.build_filenamev([this._appDir, 'wayland_setup.py']), '--enable',
+            ], Gio.SubprocessFlags.STDOUT_SILENCE | Gio.SubprocessFlags.STDERR_SILENCE);
+            this._inputSetupProcess = process;
+            const generation = this._generation;
+            process.wait_async(null, (source, result) => {
+                let status = -1;
+                try {
+                    source.wait_finish(result);
+                    if (source.get_if_exited()) status = source.get_exit_status();
+                } catch {
+                    // Cancellation or an unavailable authorization service is recoverable.
+                }
+                if (this._generation !== generation || this._inputSetupProcess !== process) return;
+                this._inputSetupProcess = null;
+                this._inputSetupStatus = status === 0 ? 'Input access enabled; checking devices…'
+                    : status === 126 || status === 127 ? 'Input setup cancelled or not authorized; you can try again'
+                        : 'Input setup failed; check polkit and udev or see README troubleshooting';
+                if (status === 0) {
+                    this._stopReader();
+                    this._nextReaderAttempt = 0;
+                }
+                this._tick();
+            });
+        } catch {
+            this._inputSetupStatus = 'Administrator approval unavailable; install pkexec (polkit) and try again';
+        }
+        this._tick();
     }
 
     _manageReader(allowed, wallMs) {
         if (!allowed) {
             this._stopReader();
-            return;
-        }
-        if (Meta.is_wayland_compositor()) {
-            this._inputError = 'Input counts require an Xorg session';
             return;
         }
         if (this._reader && !isFreshHeartbeat(this._inputHeartbeat, wallMs, 5) && wallMs >= this._nextReaderAttempt)
@@ -570,10 +646,14 @@ export default class WorkHabbitsExtension extends Extension {
         hands.meter.setLevel({fraction: model.input / SETTINGS.inputLate, color: COLORS[inputColor],
             tick: SETTINGS.inputDue / SETTINGS.inputLate});
         hands.hint.text = !active ? 'Tracking paused' : !this._eventsAvailable
-            ? this._inputError || 'Waiting for input reader' : tooLate(gauges.hands, 'input')
+            ? this._inputSetupStatus || this._inputError || 'Waiting for input reader' : tooLate(gauges.hands, 'input')
                 || (model.input === 0 ? 'Rested; timer reset' : handsIdle >= SETTINGS.inputActiveWindow
                     ? `Resets in ${formatTimer(SETTINGS.inputResetIdle - handsIdle)}`
                     : `Rest for ${Math.floor(SETTINGS.inputResetIdle / 60)}m to reset`);
+        this._inputSetupButton.visible = active && Meta.is_wayland_compositor() &&
+            this._inputSetupNeeded && !this._eventsAvailable;
+        this._inputSetupButton.reactive = !this._inputSetupProcess;
+        this._inputSetupButton.can_focus = !this._inputSetupProcess;
         if (this._indicator.menu.isOpen) this._renderMetrics();
         this._indicator.accessible_name = `work-habbits: ${this._deskReady ? this._position : 'posture unknown'}, posture ${deskColor}, hands ${inputColor}`;
         const status = (item, text) => {
@@ -669,6 +749,11 @@ export default class WorkHabbitsExtension extends Extension {
 
     disable() {
         this._generation = null;
+        this._inputSetupDialog?.close();
+        this._inputSetupDialog?.destroy();
+        this._inputSetupDialog = null;
+        this._inputSetupProcess?.force_exit();
+        this._inputSetupProcess = null;
         if (this._timerId) GLib.Source.remove(this._timerId);
         this._timerId = null;
         if (this._blinkId) GLib.Source.remove(this._blinkId);

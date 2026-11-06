@@ -14,7 +14,8 @@ class Actor {
     _init(props = {}) {
         Object.assign(this, {children: [], layout_manager: {}, visible: true}, props);
     }
-    connect() {}
+    connect(signal, callback) { (this.signals ??= {})[signal] = callback; }
+    destroy() { this.destroyed = true; this.signals?.destroy?.(); }
     add_child(child) { this.children.push(child); }
     set_style(style) { this.style = style; }
     setToggleState(value) { this.state = value; }
@@ -31,6 +32,12 @@ class Actor {
 }
 class MenuItem extends Actor {
     constructor(text, props = {}) { super(props); this.label = new Actor({text}); }
+}
+class SetupDialog extends Actor {
+    constructor() { super(); this.contentLayout = new Actor(); }
+    setButtons(buttons) { this.buttons = buttons; }
+    open() { this.opened = true; return true; }
+    close() { this.destroy(); }
 }
 const notified = [];
 const registered = new Set(['Meter', 'ScoreBar', 'ExampleExtensionMeter', 'ExampleExtensionScoreBar']);
@@ -49,12 +56,16 @@ const dependencies = {
     }},
     'gi://St': {BoxLayout: Actor, Label: Actor, Icon: Actor, Widget: Actor, Button: Actor, DrawingArea: Actor},
     'gi://GLib': {get_user_name: () => 'tester', get_monotonic_time: () => 0,
+        build_filenamev: parts => parts.join('/'),
         DateTime: {new_now_local: () => ({format: () => '2026-10-29'})},
         timeout_add: () => 1, Source: {remove() {}}, PRIORITY_DEFAULT: 0,
         find_program_in_path: () => null},
-    'gi://Gio': {},
+    'gi://Gio': {Subprocess: {new() { throw new Error('Unexpected subprocess'); }},
+        SubprocessFlags: {STDOUT_PIPE: 1, STDERR_SILENCE: 2, STDOUT_SILENCE: 4}},
     'gi://Meta': {is_wayland_compositor: () => true},
     'resource:///org/gnome/shell/ui/main.js': {notify: (...args) => notified.push(args)},
+    'resource:///org/gnome/shell/ui/dialog.js': {MessageDialogContent: Actor},
+    'resource:///org/gnome/shell/ui/modalDialog.js': {ModalDialog: SetupDialog},
     'resource:///org/gnome/shell/misc/loginManager.js': {},
     'resource:///org/gnome/shell/ui/panelMenu.js': {},
     'resource:///org/gnome/shell/ui/popupMenu.js': {PopupMenuItem: MenuItem,
@@ -209,9 +220,220 @@ test('Do Not Disturb mutes the red sound and a missing player is reported, not t
     assert.deepEqual(played, [[3, 70]], 'Coming back from idle does not restart the sound');
 });
 
-test('Wayland never launches the X11 input helper', () => {
+test('Wayland starts and stops the input reader with the same local-session gate as Xorg', () => {
     const app = new extension.namespace.default();
-    app._startReader = () => { throw new Error('Wayland must not launch an X11 recorder'); };
+    let starts = 0;
+    let stops = 0;
+    app._nextReaderAttempt = 0;
+    app._startReader = () => { starts++; app._reader = {force_exit: () => stops++}; };
     app._manageReader(true, 0);
-    assert.match(app._inputError, /Xorg/);
+    assert.equal(starts, 1);
+    app._inputHeartbeat = 1;
+    app._manageReader(true, 1000);
+    assert.equal(starts, 1, 'Only one reader while tracking');
+    app._manageReader(false, 1000);
+    assert.equal(stops, 1, 'Lock, pause or leaving the local session stops collection');
+    assert.equal(app._eventsAvailable, false);
+    app._manageReader(true, 2000);
+    assert.equal(starts, 2, 'Unlock or resume starts a fresh reader');
+});
+
+test('the helper uses evdev on Wayland and RECORD on Xorg, with the configured hand-break length', () => {
+    const gio = dependencies['gi://Gio'];
+    const glib = dependencies['gi://GLib'];
+    const meta = dependencies['gi://Meta'];
+    const launches = [];
+    const reader = {get_stdout_pipe: () => ({}), wait_async() {}};
+    Object.assign(gio, {Subprocess: {new: argv => { launches.push(argv); return reader; }},
+        SubprocessFlags: {STDOUT_PIPE: 1, STDERR_SILENCE: 2}, Cancellable: class {}, DataInputStream: class {}});
+    glib.build_filenamev = parts => parts.join('/');
+    try {
+        for (const wayland of [true, false]) {
+            meta.is_wayland_compositor = () => wayland;
+            const app = new extension.namespace.default();
+            app._appDir = '/test app';
+            app._readInput = () => {};
+            app._startReader();
+            assert.equal(app._reader, reader);
+            assert.deepEqual(launches.at(-1), [wayland ? '/usr/bin/python3' : '/test app/.venv/bin/python', '/test app/input_monitor.py',
+                `--backend=${wayland ? 'evdev' : 'x11'}`, `--break-seconds=${SETTINGS.inputResetIdle}`]);
+        }
+    } finally {
+        meta.is_wayland_compositor = () => true;
+    }
+});
+
+function setupApp() {
+    const {app, state} = buildApp();
+    const getBoolean = app._settings.get_boolean;
+    app._settings.get_boolean = key => key === 'tracking-enabled' || getBoolean(key);
+    app._generation = {};
+    app._appDir = '/test app';
+    app._localSession = () => state.active;
+    state.active = true;
+    app._indicator.menu.close = () => { state.closed = true; };
+    app._inputSetupNeeded = true;
+    app._eventsAvailable = false;
+    app._tick = () => { state.ticks = (state.ticks || 0) + 1; };
+    return {app, state};
+}
+
+test('Wayland permission failures offer setup without ever starting authorization automatically', () => {
+    const {app} = setupApp();
+    const gio = dependencies['gi://Gio'];
+    const original = gio.Subprocess.new;
+    let launches = 0;
+    gio.Subprocess.new = () => { launches++; };
+    try {
+        app._paint(true, 0, 'manual', true);
+        assert.equal(app._inputSetupButton.visible, true);
+        assert.equal(launches, 0, 'Detection only shows the action');
+        app._offerInputSetup();
+        const dialog = app._inputSetupDialog;
+        assert.equal(dialog.opened, true);
+        assert.match(dialog.contentLayout.children[0].description, /other programs.*raw input access/);
+        dialog.buttons.find(button => button.label === 'Cancel').action();
+        assert.equal(launches, 0, 'Cancelling the explanation makes no system changes');
+        assert.equal(app._inputSetupDialog, null);
+        app._paint(false, 0, 'manual', false);
+        assert.equal(app._inputSetupButton.visible, false, 'No setup action while paused or locked');
+        app._inputSetupNeeded = false;
+        app._paint(true, 0, 'manual', true);
+        assert.equal(app._inputSetupButton.visible, false, 'No authorization prompt for a disconnected device');
+    } finally {
+        gio.Subprocess.new = original;
+    }
+});
+
+test('live helper permission status drives the setup action and successful summaries clear it', () => {
+    const {app} = setupApp();
+    const reader = {};
+    app._reader = reader;
+    let callback;
+    let batch;
+    const stream = {read_line_async: (_priority, _cancel, ready) => { callback = ready; },
+        read_line_finish_utf8: () => [JSON.stringify(batch)]};
+    app._readInput(reader, stream, {});
+    for (const errorCode of ['input-unavailable', 'input-permission', '']) {
+        batch = {ready: !errorCode, errorCode, heartbeat: Date.now() / 1000,
+            keys: errorCode ? 0 : 1, clicks: 0, moves: 0, lastInputWallMs: Date.now()};
+        callback(stream, {});
+        app._paint(true, 0, 'manual', true);
+        assert.equal(app._inputSetupButton.visible, errorCode === 'input-permission');
+    }
+    assert.equal(app._model.keys, 101, 'Input resumes through the existing model');
+    assert.equal(app._inputSetupStatus, '');
+});
+
+test('explicit approval enables input and restarts tracking; cancellation never nags or retries authorization', () => {
+    const gio = dependencies['gi://Gio'];
+    const original = gio.Subprocess.new;
+    const launches = [];
+    try {
+        for (const exitStatus of [0, 126, 127, 1]) {
+            const {app, state} = setupApp();
+            let finished;
+            const process = {wait_async: (_cancel, callback) => { finished = callback; },
+                wait_finish() {}, get_if_exited: () => true, get_exit_status: () => exitStatus};
+            gio.Subprocess.new = argv => { launches.push(argv); return process; };
+            app._offerInputSetup();
+            app._inputSetupDialog.buttons.find(button => button.label === 'Enable').action();
+            assert.equal(state.closed, true);
+            assert.equal(app._inputSetupProcess, process);
+            assert.deepEqual(launches.at(-1), ['/usr/bin/pkexec', '--disable-internal-agent', '/usr/bin/python3', '-I',
+                '/test app/wayland_setup.py', '--enable']);
+            app._authorizeInputSetup();
+            assert.equal(launches.length, [0, 126, 127, 1].indexOf(exitStatus) + 1, 'No concurrent authorization');
+            finished(process, {});
+            assert.equal(app._inputSetupProcess, null);
+            if (exitStatus === 0) {
+                assert.equal(app._nextReaderAttempt, 0, 'Resume tracking immediately after ACLs are applied');
+                assert.match(app._inputSetupStatus, /enabled/);
+            } else {
+                assert.match(app._inputSetupStatus, exitStatus === 1 ? /failed/ : /cancelled|not authorized/);
+                app._paint(true, 0, 'manual', true);
+                assert.equal(app._inputSetupButton.visible, true, 'Manual retry remains available');
+                assert.equal(launches.length, [0, 126, 127, 1].indexOf(exitStatus) + 1);
+            }
+        }
+    } finally {
+        gio.Subprocess.new = original;
+    }
+});
+
+test('setup cannot start while locked, after disabling tracking, or on Xorg', () => {
+    const gio = dependencies['gi://Gio'];
+    const meta = dependencies['gi://Meta'];
+    const original = gio.Subprocess.new;
+    gio.Subprocess.new = () => { throw new Error('Unexpected privileged setup'); };
+    try {
+        const {app, state} = setupApp();
+        state.active = false;
+        app._offerInputSetup();
+        app._authorizeInputSetup();
+        assert.equal(app._inputSetupDialog, undefined);
+        state.active = true;
+        app._settings.get_boolean = () => false;
+        app._offerInputSetup();
+        app._authorizeInputSetup();
+        app._settings.get_boolean = () => true;
+        meta.is_wayland_compositor = () => false;
+        app._offerInputSetup();
+        app._authorizeInputSetup();
+        assert.equal(app._inputSetupDialog, undefined);
+    } finally {
+        gio.Subprocess.new = original;
+        meta.is_wayland_compositor = () => true;
+    }
+});
+
+test('a completed authorization cannot restart a disabled or re-enabled extension', () => {
+    const {app, state} = setupApp();
+    const gio = dependencies['gi://Gio'];
+    const original = gio.Subprocess.new;
+    let finished;
+    const process = {wait_async: (_cancel, callback) => { finished = callback; },
+        wait_finish() {}, get_if_exited: () => true, get_exit_status: () => 0};
+    gio.Subprocess.new = () => process;
+    try {
+        app._authorizeInputSetup();
+        const ticks = state.ticks;
+        app._generation = {};
+        finished(process, {});
+        assert.equal(state.ticks, ticks);
+    } finally {
+        gio.Subprocess.new = original;
+    }
+});
+
+test('disabling the extension closes its setup dialog and cancels pending authorization', () => {
+    const gio = dependencies['gi://Gio'];
+    const original = gio.Subprocess.new;
+    let finished;
+    let cancelled = 0;
+    const process = {wait_async: (_cancel, callback) => { finished = callback; },
+        wait_finish() {}, get_if_exited: () => true, get_exit_status: () => 0, force_exit: () => cancelled++};
+    gio.Subprocess.new = () => process;
+    try {
+        for (const authorize of [false, true]) {
+            const {app, state} = setupApp();
+            app._save = () => {};
+            app._indicator.destroy = () => {};
+            app._offerInputSetup();
+            const dialog = app._inputSetupDialog;
+            if (authorize) dialog.buttons.find(button => button.label === 'Enable').action();
+            const ticks = state.ticks;
+            app.disable();
+            assert.equal(dialog.destroyed, true);
+            assert.equal(app._inputSetupDialog, null);
+            assert.equal(app._inputSetupProcess, null);
+            if (authorize) {
+                assert.equal(cancelled, 1);
+                finished(process, {});
+                assert.equal(state.ticks, ticks);
+            }
+        }
+    } finally {
+        gio.Subprocess.new = original;
+    }
 });

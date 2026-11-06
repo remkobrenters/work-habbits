@@ -7,7 +7,7 @@ import {join} from 'node:path';
 import {fileURLToPath, pathToFileURL} from 'node:url';
 
 const SCENES = ['panel-green', 'panel-orange', 'panel-red', 'panel-snoozed', 'panel-unavailable', 'panel-icons',
-    'menu-dark', 'menu-light'];
+    'menu-dark', 'menu-light', 'menu-wayland-setup'];
 const root = fileURLToPath(new URL('..', import.meta.url));
 const page = pathToFileURL(join(root, 'docs/previews/previews.html')).href;
 const profile = mkdtempSync(join(tmpdir(), 'work-habbits-previews-'));

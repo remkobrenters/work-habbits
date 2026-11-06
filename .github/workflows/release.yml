@@ -42,9 +42,10 @@ jobs:
               raise SystemExit('Release notes are missing')
           PY
       - name: Install check dependencies
+        timeout-minutes: 6
         run: |
-          sudo apt-get update
-          sudo apt-get install -y python3-venv python3-gi gir1.2-adw-1 gjs gnome-shell-common libglib2.0-bin nodejs shellcheck
+          sudo apt-get -o Acquire::Retries=2 -o Acquire::http::Timeout=20 -o Acquire::https::Timeout=20 update
+          sudo env DEBIAN_FRONTEND=noninteractive apt-get -o Acquire::Retries=2 -o Acquire::http::Timeout=20 -o Acquire::https::Timeout=20 install -y python3-venv python3-gi gir1.2-adw-1 gjs gnome-shell-common libglib2.0-bin nodejs shellcheck
           /usr/bin/python3 -m venv .venv
           .venv/bin/python -m pip install -r requirements-dev.txt
           .venv/bin/python -m pip check
