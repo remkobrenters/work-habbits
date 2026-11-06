@@ -42,6 +42,12 @@ export function isFreshHeartbeat(heartbeat, wallMs, limitSeconds = 20) {
     return Number.isFinite(heartbeat) && age >= -2 && age <= limitSeconds;
 }
 
+export function isWayland(meta) {
+    // GNOME 50 removed X11 sessions and this query; it always uses Wayland.
+    // Earlier supported shells still expose the query and can run on Xorg.
+    return typeof meta.is_wayland_compositor !== 'function' || meta.is_wayland_compositor();
+}
+
 export function isLocalDesktop(session, user) {
     return session?.Remote === false && session.Name === user &&
         ['x11', 'wayland'].includes(session.Type) && session.Class === 'user';

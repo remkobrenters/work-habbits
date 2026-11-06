@@ -12,7 +12,7 @@ import * as LoginManager from 'resource:///org/gnome/shell/misc/loginManager.js'
 import * as PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js';
 import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js';
 import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js';
-import {SETTINGS, WellnessModel, isFreshHeartbeat, isLocalDesktop, isLocalSession,
+import {SETTINGS, WellnessModel, isFreshHeartbeat, isLocalDesktop, isLocalSession, isWayland,
     configure, deskState, preferencesOf} from './logic.js';
 import {dailyRecord, modelState, formatHours, formatCount, formatTimer} from './history.js';
 import {HistoryStore} from './storage.js';
@@ -416,10 +416,10 @@ export default class WorkHabbitsExtension extends Extension {
         try {
             const reader = Gio.Subprocess.new([
                 // Wayland's standard-library backend survives system Python upgrades.
-                Meta.is_wayland_compositor() ? '/usr/bin/python3'
+                isWayland(Meta) ? '/usr/bin/python3'
                     : GLib.build_filenamev([this._appDir, '.venv', 'bin', 'python']),
                 GLib.build_filenamev([this._appDir, 'input_monitor.py']),
-                `--backend=${Meta.is_wayland_compositor() ? 'evdev' : 'x11'}`,
+                `--backend=${isWayland(Meta) ? 'evdev' : 'x11'}`,
                 `--break-seconds=${SETTINGS.inputResetIdle}`,
             ], Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_SILENCE);
             this._reader = reader;
@@ -438,7 +438,9 @@ export default class WorkHabbitsExtension extends Extension {
                 }
             });
         } catch (error) {
-            this._inputError = 'Input reader unavailable; run ./install.sh again';
+            this._stopReader();
+            this._inputSetupStatus = '';
+            this._inputError = `Input reader could not start: ${error.message}`;
             console.error(`work-habbits: ${error.message}`);
         }
     }
@@ -488,7 +490,7 @@ export default class WorkHabbitsExtension extends Extension {
 
     _offerInputSetup() {
         if (!this._localSession() || !this._settings.get_boolean('tracking-enabled') ||
-            !Meta.is_wayland_compositor() || !this._inputSetupNeeded ||
+            !isWayland(Meta) || !this._inputSetupNeeded ||
             this._inputSetupDialog || this._inputSetupProcess) return;
         this._indicator.menu.close();
         const dialog = new ModalDialog.ModalDialog({shouldFadeOut: false});
@@ -516,7 +518,7 @@ export default class WorkHabbitsExtension extends Extension {
 
     _authorizeInputSetup() {
         if (!this._localSession() || !this._settings.get_boolean('tracking-enabled') ||
-            !Meta.is_wayland_compositor() || this._inputSetupProcess) return;
+            !isWayland(Meta) || this._inputSetupProcess) return;
         this._inputSetupStatus = 'Waiting for administrator approval…';
         try {
             const process = Gio.Subprocess.new([
@@ -650,7 +652,7 @@ export default class WorkHabbitsExtension extends Extension {
                 || (model.input === 0 ? 'Rested; timer reset' : handsIdle >= SETTINGS.inputActiveWindow
                     ? `Resets in ${formatTimer(SETTINGS.inputResetIdle - handsIdle)}`
                     : `Rest for ${Math.floor(SETTINGS.inputResetIdle / 60)}m to reset`);
-        this._inputSetupButton.visible = active && Meta.is_wayland_compositor() &&
+        this._inputSetupButton.visible = active && isWayland(Meta) &&
             this._inputSetupNeeded && !this._eventsAvailable;
         this._inputSetupButton.reactive = !this._inputSetupProcess;
         this._inputSetupButton.can_focus = !this._inputSetupProcess;
