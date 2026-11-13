@@ -10,7 +10,7 @@
     "50"
   ],
   "settings-schema": "org.gnome.shell.extensions.work-habbits",
-  "version": 6,
-  "version-name": "1.4.0",
+  "version": 7,
+  "version-name": "1.5.0",
   "url": "https://github.com/remkobrenters/work-habbits"
 }
