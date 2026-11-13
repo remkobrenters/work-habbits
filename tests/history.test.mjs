@@ -4,7 +4,8 @@ import {DailyHistory, dailyRecord, modelState, periodStarts, validDate, validRec
     formatHours, formatCount, formatTimer} from '../extension/history.js';
 import {WellnessModel} from '../extension/logic.js';
 const record = (date, seconds = 100) => dailyRecord({date, todaySitting: seconds, todayStanding: 20, todayAway: 10,
-    keys: 5, clicks: 3, moves: 1, seated: 100, standingRun: 500, input: 10, lastInputWallMs: 1000});
+    keys: 5, clicks: 3, moves: 1, seated: 100, standingRun: 500, input: 10,
+    shortInput: 9, lastInputWallMs: 1000});
 
 test('calendar periods handle Monday, year boundaries, DST and leap years in the desktop timezone', () => {
     assert.deepEqual(periodStarts('2026-11-01'), {today: '2026-11-01', week: '2026-10-26', month: '2026-11-01'});
@@ -33,6 +34,7 @@ test('restart retains aggregates and incomplete standing progress without counti
     const original = record('2026-10-28');
     const model = new WellnessModel(modelState(JSON.parse(JSON.stringify(original))));
     assert.deepEqual(dailyRecord(model.serialize(original.date)), original);
+    assert.equal(model.shortInput, 9);
     assert.deepEqual(Object.keys(original), ['schemaVersion', 'date', 'metrics', 'reminders']);
     model.standingRun = 1199;
     const restored = new WellnessModel(modelState(dailyRecord(model.serialize(original.date))));

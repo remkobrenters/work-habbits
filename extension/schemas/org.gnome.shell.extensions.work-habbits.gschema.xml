@@ -23,8 +23,8 @@
     </key>
     <key name="input-due" type="u">
       <range min="1" max="240" />
-      <default>25</default>
-      <summary>Minutes of typing before the hand break reminder</summary>
+      <default>60</default>
+      <summary>Minutes of active input before the long hand break reminder</summary>
     </key>
     <key name="input-grace" type="u">
       <range min="1" max="60" />
@@ -33,8 +33,23 @@
     </key>
     <key name="input-break" type="u">
       <range min="1" max="30" />
-      <default>2</default>
-      <summary>Minutes without keyboard or mouse input that count as a hand break</summary>
+      <default>5</default>
+      <summary>Minutes without keyboard or mouse input that count as a long hand break</summary>
+    </key>
+    <key name="short-input-due" type="u">
+      <range min="1" max="240" />
+      <default>20</default>
+      <summary>Minutes of active input before the short hand break reminder</summary>
+    </key>
+    <key name="short-input-grace" type="u">
+      <range min="1" max="60" />
+      <default>1</default>
+      <summary>Further active input minutes before the short hand reminder turns red</summary>
+    </key>
+    <key name="short-input-break" type="u">
+      <range min="10" max="300" />
+      <default>20</default>
+      <summary>Seconds without keyboard or mouse input that count as a short hand break</summary>
     </key>
     <key name="desk-sit" type="u">
       <range min="65" max="130" />

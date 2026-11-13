@@ -24,6 +24,8 @@ export async function run() {
     app._settings.set_boolean('sound-enabled', false);
     app._nextReaderAttempt = 0;
     app._tick();
+    check(app._shortHandsCard?.of.text.includes('20m active input') &&
+        app._handsCard?.of.text.includes('60m active input'), 'Both native hand break cards must render');
     await Scripting.sleep(1500);
     app._tick();
     check(app._reader, `Input helper must start: ${app._inputError}`);

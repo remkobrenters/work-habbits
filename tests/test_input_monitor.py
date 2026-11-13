@@ -158,7 +158,10 @@ console.log(JSON.stringify(model.serialize('2026-10-26')));
         )
         self.assertEqual(result.returncode, 0, result.stderr)
         state = json.loads(result.stdout)
-        self.assertEqual((state['keys'], state['clicks'], state['moves'], state['input']), (1, 1, 1, 1))
+        self.assertEqual(
+            (state['keys'], state['clicks'], state['moves'], state['input'], state['shortInput']),
+            (1, 1, 1, 1, 1),
+        )
 
 
 if __name__ == '__main__':

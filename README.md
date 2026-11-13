@@ -1,8 +1,8 @@
 # work-habbits
 
-**v1.3.1** · [Release notes](docs/releases/v1.3.1.md)
+**v1.4.0** · [Release notes](docs/releases/v1.4.0.md)
 
-A small GNOME extension for desk posture, movement breaks, and keyboard/mouse activity. The top bar shows posture and hands progress bars; the menu keeps colored posture and hands cards, a habit score graph, and daily/weekly/monthly totals. Activity stays on your computer; there are no accounts, telemetry, HTTP clients, or remote control endpoints.
+A small GNOME extension for desk posture, movement breaks, and keyboard/mouse activity. The top bar shows posture, short hand break and long hand break progress bars; the menu keeps colored reminder cards, a habit score graph, and daily/weekly/monthly totals. Activity stays on your computer; there are no accounts, telemetry, HTTP clients, or remote control endpoints.
 
 ## Previews
 
@@ -10,15 +10,15 @@ Rendered previews of the interface with sample data. They are not desktop screen
 
 ### Top bar
 
-Posture and Hands each show a label, a bar that fills toward the next change, and the time left.
+Posture, Short hands, and Long hands each show a label, a bar that fills toward the next change, and the time left.
 
 | Plenty of time | Change due | Too late |
 | --- | --- | --- |
-| ![Top bar with green Posture and Hands bars, 1 hour 29 minutes and 12 minutes 30 seconds left](docs/previews/panel-green.png) | ![Full orange Posture bar that blinks slowly, 1 minute 12 seconds before red](docs/previews/panel-orange.png) | ![Full red Posture bar that blinks fast, 3 minutes 48 seconds until the next penalty](docs/previews/panel-red.png) |
+| ![Top bar with green Posture, Short hands, and Long hands bars](docs/previews/panel-green.png) | ![Full orange Posture bar that blinks slowly, 1 minute 12 seconds before red](docs/previews/panel-orange.png) | ![Full red Posture bar that blinks fast, 3 minutes 48 seconds until the next penalty](docs/previews/panel-red.png) |
 
-| Snoozed | Hands unavailable | Optional icons |
+| Snoozed | Hand input unavailable | Optional icons |
 | --- | --- | --- |
-| ![Steady orange Posture bar while snoozed, 14 minutes 12 seconds left](docs/previews/panel-snoozed.png) | ![Gray, empty Hands bar with a dash when input access is unavailable](docs/previews/panel-unavailable.png) | ![Standing figure and keyboard icons colored like their bars in green, orange and red](docs/previews/panel-icons.png) |
+| ![Steady orange Posture bar while snoozed, 14 minutes 12 seconds left](docs/previews/panel-snoozed.png) | ![Gray, empty Short and Long hands bars when input access is unavailable](docs/previews/panel-unavailable.png) | ![Standing figure and keyboard icons colored like their bars in green, orange and red](docs/previews/panel-icons.png) |
 
 ### Menu
 
@@ -26,11 +26,11 @@ The menu brings posture and hand reminders, the habit score, and activity totals
 
 | Light theme | Dark theme |
 | --- | --- |
-| [![Menu in a light theme: habit score, a red posture card with its penalty countdown, hands progress, snooze button and activity totals](docs/previews/menu-light.png)](docs/previews/menu-light.png) | [![Menu in a dark theme: habit score, a red posture card with its penalty countdown, hands progress, snooze button and activity totals](docs/previews/menu-dark.png)](docs/previews/menu-dark.png) |
+| [![Menu in a light theme: habit score, posture and two hand break cards, snooze button and activity totals](docs/previews/menu-light.png)](docs/previews/menu-light.png) | [![Menu in a dark theme: habit score, posture and two hand break cards, snooze button and activity totals](docs/previews/menu-dark.png)](docs/previews/menu-dark.png) |
 
-When a Wayland session needs input permission, the Hands card offers setup:
+When a Wayland session needs input permission, the Long hand break card offers setup:
 
-[![Rendered menu with an unavailable Hands card and Enable Wayland input button](docs/previews/menu-wayland-setup.png)](docs/previews/menu-wayland-setup.png)
+[![Rendered menu with unavailable hand break cards and Enable Wayland input button](docs/previews/menu-wayland-setup.png)](docs/previews/menu-wayland-setup.png)
 
 ## Compatibility
 
@@ -94,7 +94,7 @@ Install/uninstall manage only work-habbits. Other applications, extensions, serv
 
 ### Wayland input setup
 
-Once this version is installed, switching from Xorg to Wayland automatically selects the Wayland backend. The tool detects missing input permission and offers **Enable Wayland input…** in the panel menu's Hands card:
+Once this version is installed, switching from Xorg to Wayland automatically selects the Wayland backend. The tool detects missing input permission and offers **Enable Wayland input…** in the panel menu's Long hand break card:
 
 1. Open the panel menu and choose **Enable Wayland input…**.
 2. Review the permission explanation, choose **Enable**, and approve GNOME's administrator dialog.
@@ -138,22 +138,23 @@ Configurable defaults:
 
 - After **120 active seated minutes**, remind you to stand or take a movement break; red after 2 more active minutes.
 - A **20-minute stand or marked movement break** resets the seated timer. Remind you to return to sitting, with a 2-minute orange warning before red.
-- After **25 active input minutes**, remind you to rest your hands; red after one more minute. **2 continuous minutes without hand input** reset this timer.
+- After **20 active input minutes**, remind you to take a **20-second short hand break**; red after one more active minute. Short breaks cannot be snoozed.
+- After **60 active input minutes**, remind you to take a **5-minute long hand break**; red after one more active minute. Five minutes without typing or clicking, including idle time, completes it. A long break also completes an outstanding short break.
 - Red lasts at most **10 active minutes**: a penalty halfway, another at the end, then the timer for your current posture or your hands starts a new round. An ignored reminder never charges more than two misses per round.
 
-The top bar shows Posture and Hands, each with a bar that fills toward the next change and the time until it. Bars, and the optional icons, are green before a deadline, blink orange slowly when due, blink red fast when too late, and are gray when unavailable. In orange the time counts down to red; in red it counts down to the next penalty.
+The top bar shows Posture, Short hands and Long hands, each with a bar that fills toward the next change and the time until it. Bars, and the optional icons, are green before a deadline, blink orange slowly when due, blink red fast when too late, and are gray when unavailable. In orange the time counts down to red; in red it counts down to the next penalty.
 
 Orange is silent. When a reminder turns red, a sound plays and repeats every 15 seconds by default while you keep working (once, every 15 or 30 seconds, or every minute; three bundled sounds at an adjustable volume, 70% by default). Locked, idle and paused time stays silent, and GNOME's Do Not Disturb mutes the sound while the bars keep blinking. Reminders never show desktop banners. Sounds play through `gst-play-1.0`.
 
 Sitting/standing activity totals accumulate while the local desktop is active and idle time is below 60 seconds. A standing break continues without input while the local session is unlocked. A marked walk continues while locked, but pauses when tracking is disabled or the login becomes inactive. Mark your return explicitly; manual posture is your report, not sensor data.
 
-The hand timer runs while input happened within the last 10 seconds. Typing, clicks, and scrolling indicate activity; wheel steps are not clicks. Pointer movement is sampled at most five times per second; ordinary mouse motion does not restart hand activity. Wayland touchpad contact and finger motion also indicate hand activity. Media keys and Super+L do not end a hand break. Device key auto-repeat counts as presses.
+Both hand timers run while input happened within the last 10 seconds. Typing, clicks, and scrolling indicate activity; wheel steps are not clicks. Pointer movement is sampled at most five times per second; ordinary mouse motion does not restart hand activity. Wayland touchpad contact and finger motion also indicate hand activity. Media keys and Super+L do not end a hand break. Device key auto-repeat counts as presses.
 
 Locking, switching users/TTYs, and remote sessions stop input collection. A Bluetooth disconnect pauses sensor-based posture timers. Suspend and process downtime never count as inferred activity. Daily totals and reminder progress persist across extension restarts and start anew each local calendar day.
 
-Tracking can be paused in Settings; this pauses collection, reminders and the Bluetooth helper while keeping history. The menu shows a **Snooze — leaving soon** button while a reminder is orange or red, once per round. Like Workspace Monitor, it snoozes standing/sitting reminders for 15 minutes and hand reminders for 10 minutes (configurable): the bar stays steady orange, the sound stops, and penalties already charged in this round are taken back. If you are still working when the snooze runs out, a fresh red window starts in which both penalties count twice by default, so at most four misses. Taking the break clears the snooze. Locking, leaving the local session or prolonged idle time cancels the double penalty. Locked and idle time never advances a red window. Snoozes survive Shell restarts.
+Tracking can be paused in Settings; this pauses collection, reminders and the Bluetooth helper while keeping history. The menu shows a **Snooze — leaving soon** button while a posture or long hand reminder is orange or red, once per round. It snoozes standing/sitting reminders for 15 minutes and long hand reminders for 10 minutes (configurable). Short hand reminders continue during a snooze. A snoozed bar stays steady orange, its sound stops, and penalties already charged in this round are taken back. If you are still working when the snooze runs out, a fresh red window starts in which both penalties count twice by default, so at most four misses. Taking the break clears the snooze. Locking, leaving the local session or prolonged idle time cancels the double penalty. Locked and idle time never advances a red window. Snoozes survive Shell restarts.
 
-The red-to-green habit score shows timely breaks divided by all scored reminders over the last 14 active days (configurable). Completing a posture break before red, returning to sitting before red, and resting hands after orange but before red earn points. Doing so in red before the first penalty earns nothing and costs nothing. A red window charges a miss halfway and another at its end, then starts a new round. Ordinary hand rests before a reminder earn no points. Inactive time adds no misses.
+The red-to-green habit score shows timely breaks divided by all scored reminders over the last 14 active days (configurable). Completing a posture break before red, returning to sitting before red, and completing either hand break after orange but before red earn points. Doing so in red before the first penalty earns nothing and costs nothing. A red window charges a miss halfway and another at its end, then starts a new round. Ordinary hand rests before a reminder earn no points. Inactive time adds no misses.
 
 ## Bluetooth protocol and safety
 
@@ -221,7 +222,7 @@ journalctl --user -u work-habbits-desk.service -n 30 --no-pager
 
 Diagnostic output can include local paths, Bluetooth addresses, and activity totals; inspect it before sharing. Bluetooth status being absent/stale is normal in manual/disabled mode. The service runs a settings watcher; a running service does not imply a connected desk. The panel shows live totals; disk snapshots update every 30 seconds.
 
-Reinstall/reload for missing helpers. On Wayland, choose **Enable Wayland input…** if the Hands card reports missing access. If setup fails, verify that `pkexec` and udev are installed and that `/etc/udev/rules.d/70-work-habbits-input.rules` has not been replaced with a custom file or symlink; setup preserves those rather than overwriting them. Verify typing and clicking increase counts in both a native Wayland app and an XWayland app, then confirm two minutes of rest resets the hand timer. Check lock/unlock, pause/resume, keyboard/mouse reconnects and manual posture toggles before testing Bluetooth with clear travel space and an accessible handset. Simulated tests cannot certify hardware behavior.
+Reinstall/reload for missing helpers. On Wayland, choose **Enable Wayland input…** if the Long hand break card reports missing access. If setup fails, verify that `pkexec` and udev are installed and that `/etc/udev/rules.d/70-work-habbits-input.rules` has not been replaced with a custom file or symlink; setup preserves those rather than overwriting them. Verify typing and clicking increase counts in both a native Wayland app and an XWayland app, then confirm 20 seconds of rest resets the short timer and five minutes resets the long timer. Check lock/unlock, pause/resume, keyboard/mouse reconnects and manual posture toggles before testing Bluetooth with clear travel space and an accessible handset. Simulated tests cannot certify hardware behavior.
 
 Uninstall with `./uninstall.sh`. History and preferences remain. To reset preferences while installed:
 

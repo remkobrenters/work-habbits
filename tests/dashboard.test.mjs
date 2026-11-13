@@ -133,10 +133,13 @@ test('dashboard keeps colored charts, posture percentages and score while coexis
     assert.ok(app._postureCard.meter.drawnColors.length > 1, 'Progress bar paints its colored fill');
     assert.ok(app._postureCard.big.style.includes(orange), 'Posture figure stays colored');
     assert.ok(app._handsCard.big.style.includes(orange), 'Hands figure stays colored');
-    const {posture, hands} = app._panelItems;
+    const {posture, hands, shortHands} = app._panelItems;
     assert.equal(posture.name.text, 'Posture');
     assert.equal(posture.icon.gicon, 'standing-icon');
     assert.equal(hands.icon.icon_name, 'input-keyboard-symbolic');
+    assert.equal(shortHands.name.text, 'Short hands');
+    assert.equal(hands.name.text, 'Long hands');
+    assert.equal(app._shortHandsCard.of.text, 'of 20m active input');
     assert.equal(posture.icon.visible, false, 'Icons are opt-in');
     assert.equal(posture.bar._level.color, orange);
     assert.equal(posture.bar._level.fraction, 1);
@@ -187,10 +190,15 @@ test('dashboard keeps colored charts, posture percentages and score while coexis
     assert.equal(posture.gauge.blink, 'fast');
     assert.equal(app._postureCard.hint.text, 'Too late: penalty in 5:00');
     assert.equal(app._handsCard.hint.text, 'Too late: penalty in 5:00');
-    assert.deepEqual(notified, [], 'Reminders never raise desktop banners');
-    assert.deepEqual(played, [[3, 70]], 'Red plays the chosen sound at the chosen volume once on entry');
+    app._model.shortInput = SETTINGS.shortInputLate;
     app._paint(true, 0, 'manual', true);
-    assert.deepEqual(played, [[3, 70]], 'No repeat before the interval');
+    assert.equal(app._shortHandsCard.hint.text, 'Too late: penalty in 5:00');
+    assert.equal(shortHands.gauge.blink, 'fast');
+    assert.deepEqual(notified, [], 'Reminders never raise desktop banners');
+    assert.deepEqual(played, [[3, 70], [3, 70]],
+        'The short reminder chimes when it turns red while the long reminder is already red');
+    app._paint(true, 0, 'manual', true);
+    assert.deepEqual(played, [[3, 70], [3, 70]], 'No repeat before the interval');
     app._paint(false, 0, 'manual', false);
     assert.equal(posture.time.text, '—');
     assert.equal(hands.bar._level.color, '#9ca3af');

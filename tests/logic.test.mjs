@@ -98,14 +98,51 @@ test('input counts and hand timer continue when Bluetooth is disconnected and re
     assert.equal(model.inputColor(true, 0), 'red');
     assert.equal(model.inputColor(false, 0), 'gray');
     assert.equal(model.inputColor(true, 10), 'green');
-    tick(model, {wallMs: now + 119999, idleSeconds: 0});
+    tick(model, {wallMs: now + SETTINGS.inputResetIdle * 1000 - 1, idleSeconds: 0});
     assert.equal(model.input, SETTINGS.inputLate);
-    tick(model, {wallMs: now + 120000, idleSeconds: 0});
+    tick(model, {wallMs: now + SETTINGS.inputResetIdle * 1000, idleSeconds: 0});
     assert.equal(model.input, 0);
     model.input = 100;
-    model.onInputBatch(batch({lastInputWallMs: now + 120000, hadBreak: true}));
+    model.onInputBatch(batch({lastInputWallMs: now + SETTINGS.inputResetIdle * 1000, hadBreak: true}));
     assert.equal(model.input, 0);
     assert.equal(model.keys, 2);
+});
+
+test('short rests complete only short breaks; five idle minutes complete both kinds', () => {
+    const model = new WellnessModel({input: SETTINGS.inputDue, shortInput: SETTINGS.shortInputDue,
+        lastInputWallMs: now});
+    tick(model, {dt: 0});
+    assert.deepEqual(model.snoozable(), ['input'], 'Short reminders cannot be snoozed');
+    const shortOnly = new WellnessModel({shortInput: SETTINGS.shortInputDue, lastInputWallMs: now});
+    tick(shortOnly, {dt: 0});
+    assert.deepEqual(shortOnly.snoozable(), []);
+    assert.deepEqual(shortOnly.snooze(now), []);
+    tick(model, {dt: 0, wallMs: now + 19999, idleSeconds: 19.999});
+    assert.equal(model.shortInput, SETTINGS.shortInputDue);
+    tick(model, {dt: 0, wallMs: now + 20000, idleSeconds: 20});
+    assert.deepEqual([model.shortInput, model.input, model.heeded], [0, SETTINGS.inputDue, 1]);
+    model.shortInput = SETTINGS.shortInputDue;
+    tick(model, {dt: 0, wallMs: now + 300000, idleSeconds: 300});
+    assert.deepEqual([model.shortInput, model.input, model.heeded], [0, 0, 3]);
+});
+
+test('an ignored short hand reminder scores two misses and starts a new short round', () => {
+    const cfg = {...SETTINGS, shortInputDue: 2, shortInputLate: 4, redWindow: 4};
+    const model = new WellnessModel({lastInputWallMs: now});
+    for (let i = 0; i < 8; i++) tick(model, {}, cfg);
+    assert.equal(model.missed, 2);
+    assert.equal(model.shortInput, 0);
+    assert.equal(model.input, 8, 'Long hand progress continues independently');
+});
+
+test('short reminder continues through a long reminder snooze and a 20 second input gap', () => {
+    const model = new WellnessModel({input: SETTINGS.inputDue, shortInput: SETTINGS.shortInputDue,
+        lastInputWallMs: now});
+    tick(model, {dt: 0});
+    assert.deepEqual(model.snooze(now), ['input']);
+    assert.equal(model._color('shortInput', SETTINGS), 'orange');
+    model.onInputBatch(batch({lastInputWallMs: now + 20000}));
+    assert.deepEqual([model.shortInput, model.input, model.snoozes.input?.state], [0, SETTINGS.inputDue, 'active']);
 });
 
 test('motion-only batches are retained before the first key; malformed counters are ignored', () => {
@@ -300,11 +337,11 @@ test('shrinking the red window mid-round charges at most two, then resets', () =
 });
 
 test('gauges fill toward the change, count down to the next state and blink only when due and active', () => {
-    const model = new WellnessModel({seated: 1800, input: 750, lastInputWallMs: now});
+    const model = new WellnessModel({seated: 1800, input: SETTINGS.inputDue / 2, lastInputWallMs: now});
     tick(model, {dt: 0});
     const view = (overrides = {}) => model.gauges({desk: true, input: true, idleSeconds: 0, handsIdle: 0, ...overrides});
     assert.deepEqual(view().posture, {color: 'green', blink: null, fraction: 0.25, seconds: 5400});
-    assert.deepEqual(view().hands, {color: 'green', blink: null, fraction: 0.5, seconds: 750});
+    assert.deepEqual(view().hands, {color: 'green', blink: null, fraction: 0.5, seconds: SETTINGS.inputDue / 2});
     model.seated = SETTINGS.seatedDue + 30;
     assert.deepEqual(view().posture, {color: 'orange', blink: 'slow', fraction: 1, seconds: 90});
     model.seated = SETTINGS.seatedLate + 60;
@@ -317,9 +354,12 @@ test('gauges fill toward the change, count down to the next state and blink only
     model.wallMs = now + SETTINGS.seatedSnooze * 1000;
     assert.deepEqual(view().posture, {color: 'red', blink: 'fast', fraction: 1, seconds: SETTINGS.redWindow / 2});
     model.input = SETTINGS.inputDue;
-    assert.deepEqual(view({handsIdle: 30}).hands, {color: 'green', blink: null, fraction: 1, seconds: 90});
+    assert.deepEqual(view({handsIdle: 30}).hands, {color: 'green', blink: null, fraction: 1,
+        seconds: SETTINGS.inputResetIdle - 30});
     assert.deepEqual(view({desk: false, input: false}),
-        {posture: {color: 'gray', blink: null, fraction: 0, seconds: null}, hands: {color: 'gray', blink: null, fraction: 0, seconds: null}});
+        {posture: {color: 'gray', blink: null, fraction: 0, seconds: null},
+            hands: {color: 'gray', blink: null, fraction: 0, seconds: null},
+            shortHands: {color: 'gray', blink: null, fraction: 0, seconds: null}});
     const standing = new WellnessModel({standingRun: 300});
     tick(standing, {position: 'standing', dt: 0});
     assert.deepEqual(standing.gauges({desk: true, input: false, idleSeconds: 0, handsIdle: 0}).posture,

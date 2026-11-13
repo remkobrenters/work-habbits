@@ -258,7 +258,8 @@ export default class WorkHabbitsExtension extends Extension {
         };
         this._panelItems = {
             posture: item('Posture', new St.Icon({gicon: this._postureIcon, style_class: 'system-status-icon'})),
-            hands: item('Hands', new St.Icon({icon_name: 'input-keyboard-symbolic', style_class: 'system-status-icon'})),
+            shortHands: item('Short hands', new St.Icon({icon_name: 'input-keyboard-symbolic', style_class: 'system-status-icon'})),
+            hands: item('Long hands', new St.Icon({icon_name: 'input-keyboard-symbolic', style_class: 'system-status-icon'})),
         };
     }
 
@@ -305,7 +306,7 @@ export default class WorkHabbitsExtension extends Extension {
         cards.layout_manager.homogeneous = true;
         const reminders = section(popup);
         reminders.add_child(cards);
-        const card = title => {
+        const card = (title, parent = cards) => {
             const body = new St.BoxLayout({...vertical, x_expand: true, style_class: 'wh-card'});
             body.add_child(label(title, {style_class: 'wh-heading'}));
             const figure = new St.BoxLayout({style_class: 'wh-figure'});
@@ -321,7 +322,7 @@ export default class WorkHabbitsExtension extends Extension {
             const hint = label('');
             hint.clutter_text?.set_line_wrap(true);
             body.add_child(hint);
-            cards.add_child(body);
+            parent.add_child(body);
             return {body, big, of, meter, hint};
         };
         this._postureCard = card('Posture');
@@ -330,7 +331,10 @@ export default class WorkHabbitsExtension extends Extension {
         this._deskButton = new St.Button({style_class: 'button wh-desk-button', x_align: Clutter.ActorAlign.START});
         this._deskButton.connect('clicked', () => this._deskAction());
         this._postureCard.body.add_child(this._deskButton);
-        this._handsCard = card('Hands');
+        const handCards = new St.BoxLayout({...vertical, style_class: 'wh-hand-cards', x_expand: true});
+        cards.add_child(handCards);
+        this._shortHandsCard = card('Short hand break', handCards);
+        this._handsCard = card('Long hand break', handCards);
         this._inputSetupButton = new St.Button({label: 'Enable Wayland input…', visible: false,
             style_class: 'button wh-desk-button', x_align: Clutter.ActorAlign.START});
         this._inputSetupButton.connect('clicked', () => this._offerInputSetup());
@@ -604,6 +608,7 @@ export default class WorkHabbitsExtension extends Extension {
         const gauges = model.gauges({desk: deskAvailable, input: inputAvailable, idleSeconds, handsIdle});
         const deskColor = gauges.posture.color;
         const inputColor = gauges.hands.color;
+        const shortInputColor = gauges.shortHands.color;
         this._paintGauges(gauges);
         const red = model.redReminders({active, input: inputAvailable, idleSeconds, handsIdle});
         const allowed = this._settings.get_boolean('sound-enabled') && this._notificationSettings.get_boolean('show-banners');
@@ -644,20 +649,32 @@ export default class WorkHabbitsExtension extends Extension {
         const hands = this._handsCard;
         hands.big.text = `${Math.floor(model.input / 60)}m`;
         hands.big.set_style(`color: ${COLORS[inputColor]};`);
-        hands.of.text = `of ${Math.floor(SETTINGS.inputDue / 60)}m typing`;
+        hands.of.text = `of ${Math.floor(SETTINGS.inputDue / 60)}m active input`;
         hands.meter.setLevel({fraction: model.input / SETTINGS.inputLate, color: COLORS[inputColor],
             tick: SETTINGS.inputDue / SETTINGS.inputLate});
         hands.hint.text = !active ? 'Tracking paused' : !this._eventsAvailable
             ? this._inputSetupStatus || this._inputError || 'Waiting for input reader' : tooLate(gauges.hands, 'input')
                 || (model.input === 0 ? 'Rested; timer reset' : handsIdle >= SETTINGS.inputActiveWindow
                     ? `Resets in ${formatTimer(SETTINGS.inputResetIdle - handsIdle)}`
-                    : `Rest for ${Math.floor(SETTINGS.inputResetIdle / 60)}m to reset`);
+                    : `Rest for ${formatTimer(SETTINGS.inputResetIdle)} to reset`);
+        const shortHands = this._shortHandsCard;
+        shortHands.big.text = `${Math.floor(model.shortInput / 60)}m`;
+        shortHands.big.set_style(`color: ${COLORS[shortInputColor]};`);
+        shortHands.of.text = `of ${Math.floor(SETTINGS.shortInputDue / 60)}m active input`;
+        shortHands.meter.setLevel({fraction: model.shortInput / SETTINGS.shortInputLate,
+            color: COLORS[shortInputColor], tick: SETTINGS.shortInputDue / SETTINGS.shortInputLate});
+        shortHands.hint.text = !active ? 'Tracking paused' : !this._eventsAvailable
+            ? this._inputSetupStatus || this._inputError || 'Waiting for input reader'
+                : tooLate(gauges.shortHands, 'shortInput') || (model.shortInput === 0 ? 'Rested; timer reset'
+                    : handsIdle >= SETTINGS.inputActiveWindow
+                        ? `Resets in ${formatTimer(SETTINGS.shortInputResetIdle - handsIdle)}`
+                        : `Rest for ${formatTimer(SETTINGS.shortInputResetIdle)} to reset`);
         this._inputSetupButton.visible = active && isWayland(Meta) &&
             this._inputSetupNeeded && !this._eventsAvailable;
         this._inputSetupButton.reactive = !this._inputSetupProcess;
         this._inputSetupButton.can_focus = !this._inputSetupProcess;
         if (this._indicator.menu.isOpen) this._renderMetrics();
-        this._indicator.accessible_name = `work-habbits: ${this._deskReady ? this._position : 'posture unknown'}, posture ${deskColor}, hands ${inputColor}`;
+        this._indicator.accessible_name = `work-habbits: ${this._deskReady ? this._position : 'posture unknown'}, posture ${deskColor}, short hands ${shortInputColor}, long hands ${inputColor}`;
         const status = (item, text) => {
             item.visible = Boolean(text);
             item.label.text = text;
@@ -666,7 +683,7 @@ export default class WorkHabbitsExtension extends Extension {
             : this._store.warnings.length ? 'Unreadable history preserved; see logs' : '');
         status(this._soundItem, this._soundError);
         this._snoozeButton.visible = active && model.snoozable().length > 0;
-        const names = {seated: 'Stand', stand: 'Sit', input: 'Hands'};
+        const names = {seated: 'Stand', stand: 'Sit', input: 'Long hands'};
         const states = model.snoozeStates();
         this._snoozeHint.text = Object.entries(states).map(([name, state]) => {
             const time = formatTimer(model.snoozeSeconds(name));

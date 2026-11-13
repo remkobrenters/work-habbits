@@ -42,6 +42,7 @@
   .score .ball { position: absolute; top: 0; width: 18px; height: 18px; box-sizing: border-box; border-radius: 50%;
     border: 3px solid var(--fg); background: rgb(128, 192, 107); }
   .cards { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .hand-cards { display: flex; flex-direction: column; gap: 8px; }
   .card { background: rgba(128, 128, 128, 0.12); border-radius: 12px; padding: 10px; display: flex; flex-direction: column; gap: 9px; }
   .figure { display: flex; align-items: baseline; gap: 6px; }
   .big { font-size: 2em; font-weight: 300; font-variant-numeric: tabular-nums; line-height: 1; }
@@ -161,9 +162,49 @@
 </div></div></section>
 <section id="menu-wayland-setup"></section>
 <script>
-// The setup scene uses the same sample menu and only changes the unavailable Hands card.
+// Apply the current three-gauge layout to the archived sample scenes before capture.
+for (const section of document.querySelectorAll('section[id^="panel-"]')) {
+  for (const strip of section.querySelectorAll('.strip')) {
+    const short = strip.querySelectorAll('.gauge')[1];
+    if (!short) continue;
+    const long = short.cloneNode(true);
+    short.querySelector('.name').textContent = 'Short hands';
+    long.querySelector('.name').textContent = 'Long hands';
+    if (section.id === 'panel-unavailable') long.querySelector('.time').textContent = '—';
+    else {
+      long.querySelector('.bar i').style.width = '20%';
+      long.querySelector('.time').textContent = '48:00';
+    }
+    strip.append(long);
+  }
+}
+for (const section of document.querySelectorAll('#menu-dark, #menu-light')) {
+  const cards = section.querySelector('.cards');
+  const long = cards.querySelectorAll('.card')[1];
+  const short = long.cloneNode(true);
+  const column = document.createElement('div');
+  column.className = 'hand-cards';
+  cards.append(column);
+  column.append(short, long);
+  short.querySelector('.heading').textContent = 'Short hand break';
+  short.querySelector('.figure .muted').textContent = 'of 20m active input';
+  short.querySelector('.fill').style.width = '57%';
+  short.querySelector('.tick').style.left = '95.2%';
+  short.lastElementChild.textContent = 'Rest for 0:20 to reset';
+  long.querySelector('.heading').textContent = 'Long hand break';
+  long.querySelector('.figure .muted').textContent = 'of 60m active input';
+  long.querySelector('.fill').style.width = '19.7%';
+  long.querySelector('.tick').style.left = '98.4%';
+  long.lastElementChild.textContent = 'Rest for 5:00 to reset';
+}
+// The setup scene uses the same sample menu and marks both hand cards unavailable.
 const setupMenu = document.querySelector('#menu-dark > .menu').cloneNode(true);
-const setupHands = setupMenu.querySelectorAll('.card')[1];
+const setupShort = setupMenu.querySelectorAll('.card')[1];
+setupShort.querySelector('.big').textContent = '0m';
+setupShort.querySelector('.big').style.color = 'var(--gray)';
+setupShort.querySelector('.fill').style.width = '0%';
+setupShort.lastElementChild.textContent = 'Input permission needed';
+const setupHands = setupMenu.querySelectorAll('.card')[2];
 setupHands.querySelector('.big').textContent = '0m';
 setupHands.querySelector('.big').style.color = 'var(--gray)';
 setupHands.querySelector('.fill').style.width = '0%';

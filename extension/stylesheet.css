@@ -50,6 +50,10 @@
   spacing: 8px;
 }
 
+.wh-hand-cards {
+  spacing: 8px;
+}
+
 .wh-card {
   background-color: rgba(128, 128, 128, 0.12);
   border-radius: 12px;
