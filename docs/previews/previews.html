@@ -162,22 +162,7 @@
 </div></div></section>
 <section id="menu-wayland-setup"></section>
 <script>
-// Apply the current three-gauge layout to the archived sample scenes before capture.
-for (const section of document.querySelectorAll('section[id^="panel-"]')) {
-  for (const strip of section.querySelectorAll('.strip')) {
-    const short = strip.querySelectorAll('.gauge')[1];
-    if (!short) continue;
-    const long = short.cloneNode(true);
-    short.querySelector('.name').textContent = 'Short hands';
-    long.querySelector('.name').textContent = 'Long hands';
-    if (section.id === 'panel-unavailable') long.querySelector('.time').textContent = '—';
-    else {
-      long.querySelector('.bar i').style.width = '20%';
-      long.querySelector('.time').textContent = '48:00';
-    }
-    strip.append(long);
-  }
-}
+// Keep detailed short and long hand-break cards in the menu.
 for (const section of document.querySelectorAll('#menu-dark, #menu-light')) {
   const cards = section.querySelector('.cards');
   const long = cards.querySelectorAll('.card')[1];

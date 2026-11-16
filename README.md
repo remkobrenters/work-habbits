@@ -2,7 +2,7 @@
 
 **v1.5.0** · [Release notes](docs/releases/v1.5.0.md)
 
-A small GNOME extension for desk posture, movement breaks, and keyboard/mouse activity. The top bar shows posture, short hand break and long hand break progress bars; the menu keeps colored reminder cards, a habit score graph, and daily/weekly/monthly totals. Activity stays on your computer; there are no accounts, telemetry, HTTP clients, or remote control endpoints.
+A small GNOME extension for desk posture, movement breaks, and keyboard/mouse activity. The top bar shows posture and the next hand break; the menu keeps colored reminder cards, a habit score graph, and daily/weekly/monthly totals. Activity stays on your computer; there are no accounts, telemetry, HTTP clients, or remote control endpoints.
 
 ## Previews
 
@@ -10,15 +10,15 @@ Rendered previews of the interface with sample data. They are not desktop screen
 
 ### Top bar
 
-Posture, Short hands, and Long hands each show a label, a bar that fills toward the next change, and the time left.
+Posture and Hands each show a label, a bar that fills toward the next change, and the time left. Hands follows whichever short or long break comes next, prioritizing due and overdue breaks.
 
 | Plenty of time | Change due | Too late |
 | --- | --- | --- |
-| ![Top bar with green Posture, Short hands, and Long hands bars](docs/previews/panel-green.png) | ![Full orange Posture bar that blinks slowly, 1 minute 12 seconds before red](docs/previews/panel-orange.png) | ![Full red Posture bar that blinks fast, 3 minutes 48 seconds until the next penalty](docs/previews/panel-red.png) |
+| ![Top bar with green Posture and Hands bars](docs/previews/panel-green.png) | ![Full orange Posture bar that blinks slowly, 1 minute 12 seconds before red](docs/previews/panel-orange.png) | ![Full red Posture bar that blinks fast, 3 minutes 48 seconds until the next penalty](docs/previews/panel-red.png) |
 
 | Snoozed | Hand input unavailable | Optional icons |
 | --- | --- | --- |
-| ![Steady orange Posture bar while snoozed, 14 minutes 12 seconds left](docs/previews/panel-snoozed.png) | ![Gray, empty Short and Long hands bars when input access is unavailable](docs/previews/panel-unavailable.png) | ![Standing figure and keyboard icons colored like their bars in green, orange and red](docs/previews/panel-icons.png) |
+| ![Steady orange Posture bar while snoozed, 14 minutes 12 seconds left](docs/previews/panel-snoozed.png) | ![Gray, empty Hands bar when input access is unavailable](docs/previews/panel-unavailable.png) | ![Standing figure and keyboard icons colored like their bars in green, orange and red](docs/previews/panel-icons.png) |
 
 ### Menu
 
@@ -142,7 +142,7 @@ Configurable defaults:
 - After **60 active input minutes**, remind you to take a **5-minute long hand break**; red after one more active minute. Five minutes without typing or clicking, including idle time, completes it. A long break also completes an outstanding short break.
 - Red lasts at most **10 active minutes**: a penalty halfway, another at the end, then the timer for your current posture or your hands starts a new round. An ignored reminder never charges more than two misses per round.
 
-The top bar shows Posture, Short hands and Long hands, each with a bar that fills toward the next change and the time until it. Bars, and the optional icons, are green before a deadline, blink orange slowly when due, blink red fast when too late, and are gray when unavailable. In orange the time counts down to red; in red it counts down to the next penalty.
+The top bar shows Posture and a single Hands item for the next short or long hand break, each with a bar that fills toward the next change and the time until it. Due and overdue hand breaks take priority over upcoming or snoozed ones. The menu keeps separate short and long hand-break details. Bars, and the optional icons, are green before a deadline, blink orange slowly when due, blink red fast when too late, and are gray when unavailable. In orange the time counts down to red; in red it counts down to the next penalty.
 
 Orange is silent. When a reminder turns red, a sound plays and repeats every 15 seconds by default while you keep working (once, every 15 or 30 seconds, or every minute; three bundled sounds at an adjustable volume, 70% by default). Locked, idle and paused time stays silent, and GNOME's Do Not Disturb mutes the sound while the bars keep blinking. Reminders never show desktop banners. Sounds play through `gst-play-1.0`.
 

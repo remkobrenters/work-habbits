@@ -133,12 +133,12 @@ test('dashboard keeps colored charts, posture percentages and score while coexis
     assert.ok(app._postureCard.meter.drawnColors.length > 1, 'Progress bar paints its colored fill');
     assert.ok(app._postureCard.big.style.includes(orange), 'Posture figure stays colored');
     assert.ok(app._handsCard.big.style.includes(orange), 'Hands figure stays colored');
-    const {posture, hands, shortHands} = app._panelItems;
+    const {posture, hands} = app._panelItems;
     assert.equal(posture.name.text, 'Posture');
     assert.equal(posture.icon.gicon, 'standing-icon');
     assert.equal(hands.icon.icon_name, 'input-keyboard-symbolic');
-    assert.equal(shortHands.name.text, 'Short hands');
-    assert.equal(hands.name.text, 'Long hands');
+    assert.deepEqual(Object.keys(app._panelItems), ['posture', 'hands']);
+    assert.equal(hands.name.text, 'Hands');
     assert.equal(app._shortHandsCard.of.text, 'of 20m active input');
     assert.equal(posture.icon.visible, false, 'Icons are opt-in');
     assert.equal(posture.bar._level.color, orange);
@@ -193,7 +193,7 @@ test('dashboard keeps colored charts, posture percentages and score while coexis
     app._model.shortInput = SETTINGS.shortInputLate;
     app._paint(true, 0, 'manual', true);
     assert.equal(app._shortHandsCard.hint.text, 'Too late: penalty in 5:00');
-    assert.equal(shortHands.gauge.blink, 'fast');
+    assert.equal(hands.gauge.blink, 'fast');
     assert.deepEqual(notified, [], 'Reminders never raise desktop banners');
     assert.deepEqual(played, [[3, 70], [3, 70]],
         'The short reminder chimes when it turns red while the long reminder is already red');
@@ -207,6 +207,32 @@ test('dashboard keeps colored charts, posture percentages and score while coexis
     assert.equal(app._deskButton.visible, false);
     assert.equal(app._pause, undefined, 'Tracking is configured in Settings');
 });
+
+for (const {name, input, shortInput, snoozed = false, seconds, color, blink} of [
+    {name: 'short break comes first', input: 1800, shortInput: 900,
+        seconds: '5:00', color: '#40cb82', blink: null},
+    {name: 'long break comes first', input: 3500, shortInput: 900,
+        seconds: '1:40', color: '#40cb82', blink: null},
+    {name: 'due short break takes priority over an upcoming long break', input: 3590, shortInput: 1200,
+        seconds: '1:00', color: '#f1ac43', blink: 'slow'},
+    {name: 'overdue long break takes priority over a due short break', input: 3660, shortInput: 1200,
+        seconds: '5:00', color: '#f26a66', blink: 'fast'},
+    {name: 'upcoming short break comes before a snoozed long break', input: 3600, shortInput: 900, snoozed: true,
+        seconds: '5:00', color: '#40cb82', blink: null},
+]) {
+    test(`single Hands indicator follows the next break: ${name}`, () => {
+        const {app} = buildApp({input});
+        app._model.shortInput = shortInput;
+        if (snoozed) app._model.snooze(1000);
+        app._paint(true, 0, 'manual', true);
+        const {hands} = app._panelItems;
+        assert.equal(hands.name.text, 'Hands');
+        assert.equal(hands.time.text, seconds);
+        assert.equal(hands.bar._level.color, color);
+        assert.equal(hands.gauge.blink, blink);
+        assert.match(app._indicator.accessible_name, /, hands (green|orange|red)$/);
+    });
+}
 
 test('Do Not Disturb mutes the red sound and a missing player is reported, not thrown', () => {
     const sound = moduleAt(new URL('../extension/sound.js', import.meta.url).href).namespace;

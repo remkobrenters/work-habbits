@@ -13,7 +13,7 @@ import * as PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js';
 import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js';
 import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js';
 import {SETTINGS, WellnessModel, isFreshHeartbeat, isLocalDesktop, isLocalSession, isWayland,
-    configure, deskState, preferencesOf} from './logic.js';
+    configure, deskState, nextHandsGauge, preferencesOf} from './logic.js';
 import {dailyRecord, modelState, formatHours, formatCount, formatTimer} from './history.js';
 import {HistoryStore} from './storage.js';
 import {Sound} from './sound.js';
@@ -258,8 +258,7 @@ export default class WorkHabbitsExtension extends Extension {
         };
         this._panelItems = {
             posture: item('Posture', new St.Icon({gicon: this._postureIcon, style_class: 'system-status-icon'})),
-            shortHands: item('Short hands', new St.Icon({icon_name: 'input-keyboard-symbolic', style_class: 'system-status-icon'})),
-            hands: item('Long hands', new St.Icon({icon_name: 'input-keyboard-symbolic', style_class: 'system-status-icon'})),
+            hands: item('Hands', new St.Icon({icon_name: 'input-keyboard-symbolic', style_class: 'system-status-icon'})),
         };
     }
 
@@ -609,7 +608,8 @@ export default class WorkHabbitsExtension extends Extension {
         const deskColor = gauges.posture.color;
         const inputColor = gauges.hands.color;
         const shortInputColor = gauges.shortHands.color;
-        this._paintGauges(gauges);
+        const nextHands = nextHandsGauge(gauges);
+        this._paintGauges({posture: gauges.posture, hands: nextHands});
         const red = model.redReminders({active, input: inputAvailable, idleSeconds, handsIdle});
         const allowed = this._settings.get_boolean('sound-enabled') && this._notificationSettings.get_boolean('show-banners');
         const chime = this._chimes.update({red, allowed, repeatSeconds: this._settings.get_uint('sound-repeat'),
@@ -674,7 +674,7 @@ export default class WorkHabbitsExtension extends Extension {
         this._inputSetupButton.reactive = !this._inputSetupProcess;
         this._inputSetupButton.can_focus = !this._inputSetupProcess;
         if (this._indicator.menu.isOpen) this._renderMetrics();
-        this._indicator.accessible_name = `work-habbits: ${this._deskReady ? this._position : 'posture unknown'}, posture ${deskColor}, short hands ${shortInputColor}, long hands ${inputColor}`;
+        this._indicator.accessible_name = `work-habbits: ${this._deskReady ? this._position : 'posture unknown'}, posture ${deskColor}, hands ${nextHands.color}`;
         const status = (item, text) => {
             item.visible = Boolean(text);
             item.label.text = text;

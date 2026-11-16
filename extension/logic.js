@@ -89,6 +89,13 @@ const LATE = {seated: 'seatedLate', stand: 'standLate', input: 'inputLate', shor
 const BLINK = {orange: 'slow', red: 'fast'};
 const GRAY = Object.freeze({color: 'gray', blink: null, fraction: 0, seconds: null});
 
+export function nextHandsGauge({hands, shortHands}) {
+    const urgency = gauge => ({fast: 2, slow: 1}[gauge.blink] ?? 0);
+    if (urgency(hands) !== urgency(shortHands))
+        return urgency(hands) > urgency(shortHands) ? hands : shortHands;
+    return hands.seconds <= shortHands.seconds ? hands : shortHands;
+}
+
 function validSnooze(snooze) {
     return ['until', 'grace'].every(name => Number.isFinite(snooze?.[name]) && snooze[name] >= 0) &&
         ['active', 'forgiven'].includes(snooze.state);
