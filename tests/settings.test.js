@@ -17,7 +17,8 @@ try {
     assert(preferencesProblem(preferencesOf(settings)) === null, 'Defaults are internally consistent');
     assert(settings.get_uint('red-window') === 10 && settings.get_uint('seated-grace') === 2, 'Bounded red window defaults');
     assert(settings.get_uint('short-input-due') === 20 && settings.get_uint('short-input-break') === 20 &&
-        settings.get_uint('input-due') === 60 && settings.get_uint('input-break') === 5, 'Two hand break defaults');
+        settings.get_uint('input-due') === 60, 'Two hand break defaults');
+    assert(!settings.settings_schema.has_key('input-break'), 'Both hand timers reset after a fixed one-minute rest');
     assert(!settings.settings_schema.has_key('seated-repeat'), 'Unbounded miss intervals are gone');
     assert(!settings.settings_schema.has_key('notifications-enabled'), 'Reminder banners are gone');
     assert(settings.get_boolean('sound-enabled') && settings.get_uint('sound-effect') === 3 &&
@@ -29,9 +30,9 @@ try {
     settings.set_string('manual-position', 'standing');
     assert(deskState(settings.get_string('desk-mode'), settings.get_string('manual-position'), null, 0).position === 'standing',
         'Manual posture comes from the shared settings');
-    settings.set_uint('input-break', 3);
+    settings.set_uint('input-due', 30);
     configure(preferencesOf(settings));
-    assert(SETTINGS.inputResetIdle === 180, 'Settings affect the real reminder model');
+    assert(SETTINGS.inputDue === 1800 && SETTINGS.inputResetIdle === 60, 'Reminder intervals are configurable; rest stays one minute');
     settings.set_uint('short-input-break', 30);
     configure(preferencesOf(settings));
     assert(SETTINGS.shortInputResetIdle === 30, 'Short break duration uses seconds');

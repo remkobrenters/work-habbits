@@ -75,15 +75,14 @@ export default class WorkHabbitsPreferences extends ExtensionPreferences {
                 ['seated-due', 'Stand or take a walk after'], ['seated-grace', 'Orange warning before red (stand up)'],
                 ['stand-required', 'Standing / movement break length'], ['stand-grace', 'Orange warning before red (sit down)']]],
             [new Adw.PreferencesGroup({title: 'Short hand breaks', description:
-                'Rest your hands without typing or clicking. Short breaks cannot be snoozed.'}), [
+                'Rest your hands without typing or clicking. One minute of rest resets both hand timers. Short breaks cannot be snoozed.'}), [
                 ['short-input-due', 'Remind after active input (minutes)'],
                 ['short-input-grace', 'Orange warning before red (minutes)'],
                 ['short-input-break', 'Continuous rest to complete (seconds)']]],
             [new Adw.PreferencesGroup({title: 'Long hand breaks', description:
-                'A long break also completes after this much time without typing or clicking, including idle time.'}), [
+                'One minute without typing or clicking resets both hand timers, even before a reminder is due.'}), [
                 ['input-due', 'Remind after active input (minutes)'],
-                ['input-grace', 'Orange warning before red (minutes)'],
-                ['input-break', 'Continuous rest to complete (minutes)']]],
+                ['input-grace', 'Orange warning before red (minutes)']]],
             [new Adw.PreferencesGroup({title: 'Snooze — leaving soon'}), [
                 ['seated-snooze', 'Snooze standing reminders (minutes)'], ['stand-snooze', 'Snooze sitting reminders (minutes)'],
                 ['input-snooze', 'Snooze long hand reminders (minutes)'], ['snooze-away', 'Idle minutes to forgive snoozes'],

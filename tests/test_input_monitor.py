@@ -88,12 +88,12 @@ class InputCounterTests(unittest.TestCase):
             dict(media=frozenset({172, 208, 123}), supers=frozenset({133, 134}), screen_lock=frozenset({46})),
         )
 
-    def test_two_minute_boundary_and_reset_is_reported_once(self):
+    def test_one_minute_boundary_and_reset_is_reported_once(self):
         counter = InputCounter()
         counter.consume(frame(2), 1, 1000)
-        counter.consume(frame(2), 120.5, 1119.5)
+        counter.consume(frame(2), 60.5, 1059.5)
         self.assertFalse(counter.snapshot(ready=True)['hadBreak'])
-        counter.consume(frame(2), 240.5, 1239.5)
+        counter.consume(frame(2), 120.5, 1119.5)
         self.assertTrue(counter.snapshot(ready=True)['hadBreak'])
         self.assertFalse(counter.snapshot(ready=True)['hadBreak'])
 

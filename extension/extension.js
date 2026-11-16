@@ -183,9 +183,8 @@ export default class WorkHabbitsExtension extends Extension {
                 this._socketCancel?.cancel();
                 this._socketCancel = new Gio.Cancellable();
             }
-            if (key === 'input-break' || key === 'tracking-enabled') this._stopReader();
+            if (key === 'tracking-enabled') this._stopReader();
             if (key.startsWith('sound-')) this._soundError = '';
-            if (key === 'input-break') this._nextReaderAttempt = 0;
             if (key === 'desk-mode') {
                 this._settings.set_string('manual-position', 'sitting');
                 this._model.resetPosture();
@@ -658,6 +657,7 @@ export default class WorkHabbitsExtension extends Extension {
                     ? `Resets in ${formatTimer(SETTINGS.inputResetIdle - handsIdle)}`
                     : `Rest for ${formatTimer(SETTINGS.inputResetIdle)} to reset`);
         const shortHands = this._shortHandsCard;
+        const shortRest = Math.min(SETTINGS.shortInputResetIdle, SETTINGS.inputResetIdle);
         shortHands.big.text = `${Math.floor(model.shortInput / 60)}m`;
         shortHands.big.set_style(`color: ${COLORS[shortInputColor]};`);
         shortHands.of.text = `of ${Math.floor(SETTINGS.shortInputDue / 60)}m active input`;
@@ -667,8 +667,8 @@ export default class WorkHabbitsExtension extends Extension {
             ? this._inputSetupStatus || this._inputError || 'Waiting for input reader'
                 : tooLate(gauges.shortHands, 'shortInput') || (model.shortInput === 0 ? 'Rested; timer reset'
                     : handsIdle >= SETTINGS.inputActiveWindow
-                        ? `Resets in ${formatTimer(SETTINGS.shortInputResetIdle - handsIdle)}`
-                        : `Rest for ${formatTimer(SETTINGS.shortInputResetIdle)} to reset`);
+                        ? `Resets in ${formatTimer(shortRest - handsIdle)}`
+                        : `Rest for ${formatTimer(shortRest)} to reset`);
         this._inputSetupButton.visible = active && isWayland(Meta) &&
             this._inputSetupNeeded && !this._eventsAvailable;
         this._inputSetupButton.reactive = !this._inputSetupProcess;

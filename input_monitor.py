@@ -16,9 +16,9 @@ import re
 import threading
 import time
 
-# A hand break: this long without input. The extension passes its own setting
+# A hand break: this long without input. The extension passes the same threshold
 # (inputResetIdle) with --break-seconds.
-BREAK_SECONDS = 120
+BREAK_SECONDS = 60
 
 # Keys that are not hand work, so pausing the music and locking the screen on the way out
 # keep a hand break running. X11 keysyms: XF86AudioLowerVolume, Mute, RaiseVolume, Play,

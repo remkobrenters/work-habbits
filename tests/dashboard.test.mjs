@@ -272,7 +272,7 @@ test('Wayland starts and stops the input reader with the same local-session gate
     assert.equal(starts, 2, 'Unlock or resume starts a fresh reader');
 });
 
-test('the helper uses evdev on Wayland and RECORD on Xorg, with the configured hand-break length', () => {
+test('the helper uses evdev on Wayland and RECORD on Xorg, detecting one-minute rests', () => {
     const gio = dependencies['gi://Gio'];
     const glib = dependencies['gi://GLib'];
     const meta = dependencies['gi://Meta'];
@@ -290,7 +290,7 @@ test('the helper uses evdev on Wayland and RECORD on Xorg, with the configured h
             app._startReader();
             assert.equal(app._reader, reader);
             assert.deepEqual(launches.at(-1), [wayland ? '/usr/bin/python3' : '/test app/.venv/bin/python', '/test app/input_monitor.py',
-                `--backend=${wayland ? 'evdev' : 'x11'}`, `--break-seconds=${SETTINGS.inputResetIdle}`]);
+                `--backend=${wayland ? 'evdev' : 'x11'}`, '--break-seconds=60']);
         }
     } finally {
         meta.is_wayland_compositor = () => true;

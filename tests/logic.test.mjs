@@ -108,7 +108,7 @@ test('input counts and hand timer continue when Bluetooth is disconnected and re
     assert.equal(model.keys, 2);
 });
 
-test('short rests complete only short breaks; five idle minutes complete both kinds', () => {
+test('short rests complete only short breaks; one idle minute completes both kinds', () => {
     const model = new WellnessModel({input: SETTINGS.inputDue, shortInput: SETTINGS.shortInputDue,
         lastInputWallMs: now});
     tick(model, {dt: 0});
@@ -122,9 +122,33 @@ test('short rests complete only short breaks; five idle minutes complete both ki
     tick(model, {dt: 0, wallMs: now + 20000, idleSeconds: 20});
     assert.deepEqual([model.shortInput, model.input, model.heeded], [0, SETTINGS.inputDue, 1]);
     model.shortInput = SETTINGS.shortInputDue;
-    tick(model, {dt: 0, wallMs: now + 300000, idleSeconds: 300});
+    tick(model, {dt: 0, wallMs: now + 60000, idleSeconds: 60});
     assert.deepEqual([model.shortInput, model.input, model.heeded], [0, 0, 3]);
 });
+
+for (const {name, input, shortInput, heeded} of [
+    {name: 'before a break is due', input: 1800, shortInput: 900, heeded: 0},
+    {name: 'when breaks are due', input: 3600, shortInput: 1200, heeded: 2},
+    {name: 'when breaks are overdue', input: 3660, shortInput: 1260, heeded: 0},
+]) {
+    test(`one minute without input resets both timers ${name}`, () => {
+        const model = new WellnessModel({input, shortInput, keys: 42, lastInputWallMs: now});
+        tick(model, {dt: 0, wallMs: now + 59999});
+        assert.equal(model.input, input, 'Less than a minute preserves the long timer');
+        tick(model, {dt: 0, wallMs: now + 60000});
+        assert.deepEqual([model.input, model.shortInput, model.heeded, model.keys], [0, 0, heeded, 42]);
+        tick(model, {dt: 0, wallMs: now + 61000});
+        assert.equal(model.heeded, heeded, 'Continuing to rest cannot score the same break twice');
+    });
+
+    test(`an input batch after a one-minute gap resets both timers ${name}`, () => {
+        const model = new WellnessModel({input, shortInput, lastInputWallMs: now});
+        model.onInputBatch(batch({lastInputWallMs: now + 59999}));
+        assert.equal(model.input, input);
+        model.onInputBatch(batch({lastInputWallMs: now + 119999}));
+        assert.deepEqual([model.input, model.shortInput, model.heeded, model.keys], [0, 0, heeded, 2]);
+    });
+}
 
 test('an ignored short hand reminder scores two misses and starts a new short round', () => {
     const cfg = {...SETTINGS, shortInputDue: 2, shortInputLate: 4, redWindow: 4};
@@ -168,7 +192,7 @@ test('configuration validates heights and device addresses and converts minutes 
         'red-window': 10, 'score-days': 14};
     const original = {...SETTINGS};
     configure(prefs);
-    assert.deepEqual([SETTINGS.seatedDue, SETTINGS.standLate, SETTINGS.inputResetIdle, SETTINGS.deskSitCm], [3600, 900, 180, 75]);
+    assert.deepEqual([SETTINGS.seatedDue, SETTINGS.standLate, SETTINGS.inputResetIdle, SETTINGS.deskSitCm], [3600, 900, 60, 75]);
     Object.assign(SETTINGS, original);
     assert.deepEqual(preferencesOf({settings_schema: {list_keys: () => ['desk-mode']},
         get_value: () => ({deep_unpack: () => 'manual'})}), {'desk-mode': 'manual'});

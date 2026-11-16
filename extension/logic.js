@@ -1,7 +1,7 @@
 // Pure reminder logic. Durations are seconds; wall-clock values are milliseconds.
 export const SETTINGS = {
     seatedDue: 7200, seatedLate: 7320, standRequired: 1200, standLate: 1320,
-    inputDue: 3600, inputLate: 3660, inputResetIdle: 300,
+    inputDue: 3600, inputLate: 3660, inputResetIdle: 60,
     shortInputDue: 1200, shortInputLate: 1260, shortInputResetIdle: 20,
     inputActiveWindow: 10, postureActiveWindow: 60, deskSitCm: 80, deskStandCm: 112,
     redWindow: 600, scoreDays: 14,
@@ -21,7 +21,6 @@ export function configure(prefs) {
         standLate: (prefs['stand-required'] + prefs['stand-grace']) * 60,
         inputDue: prefs['input-due'] * 60,
         inputLate: (prefs['input-due'] + prefs['input-grace']) * 60,
-        inputResetIdle: prefs['input-break'] * 60,
         shortInputDue: (prefs['short-input-due'] ?? 20) * 60,
         shortInputLate: ((prefs['short-input-due'] ?? 20) + (prefs['short-input-grace'] ?? 1)) * 60,
         shortInputResetIdle: prefs['short-input-break'] ?? 20,
@@ -125,7 +124,7 @@ export class WellnessModel {
             return;
         const gap = this.lastInputWallMs ? batch.lastInputWallMs - this.lastInputWallMs : 0;
         if (batch.hadBreak || gap >= SETTINGS.inputResetIdle * 1000) this._restHands('input', SETTINGS);
-        if (batch.hadBreak || gap >= SETTINGS.shortInputResetIdle * 1000)
+        if (batch.hadBreak || gap >= Math.min(SETTINGS.shortInputResetIdle, SETTINGS.inputResetIdle) * 1000)
             this._restHands('shortInput', SETTINGS);
         this.keys += batch.keys;
         this.clicks += batch.clicks;
@@ -235,7 +234,7 @@ export class WellnessModel {
         const handsIdle = this.handsIdle(idleSeconds);
         if (!localActive || idleSeconds >= cfg.snoozeAway || (this.lastInputWallMs && handsIdle >= cfg.snoozeAway)) this._forgive();
         if (handsIdle >= cfg.inputResetIdle) this._restHands('input', cfg);
-        if (handsIdle >= cfg.shortInputResetIdle) this._restHands('shortInput', cfg);
+        if (handsIdle >= Math.min(cfg.shortInputResetIdle, cfg.inputResetIdle)) this._restHands('shortInput', cfg);
         // Input tracking is independent of Bluetooth availability.
         if (localActive && inputAvailable && handsIdle < cfg.inputActiveWindow) {
             this.input += dt;
@@ -309,7 +308,7 @@ export class WellnessModel {
         const handGauge = name => handsIdle < cfg.inputActiveWindow
             ? gauge(name, this.inputColor(true, handsIdle, cfg, name), true)
             : {...gauge(name, 'green', false), seconds: this[VALUE[name]] > 0
-                ? Math.max(0, cfg[`${name}ResetIdle`] - handsIdle) : cfg[DUE[name]]};
+                ? Math.max(0, Math.min(cfg[`${name}ResetIdle`], cfg.inputResetIdle) - handsIdle) : cfg[DUE[name]]};
         return {posture, hands: handGauge('input'), shortHands: handGauge('shortInput')};
     }
 
