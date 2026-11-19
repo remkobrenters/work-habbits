@@ -30,7 +30,7 @@ test('daily snapshots replace previous counts, sum independent periods and exclu
     assert.equal(totals.today.awaySeconds, 10);
 });
 
-test('restart retains aggregates and incomplete standing progress without counting downtime', () => {
+test('restart during a short absence retains aggregates and incomplete standing progress', () => {
     const original = record('2026-10-28');
     const model = new WellnessModel(modelState(JSON.parse(JSON.stringify(original))));
     assert.deepEqual(dailyRecord(model.serialize(original.date)), original);
@@ -38,9 +38,10 @@ test('restart retains aggregates and incomplete standing progress without counti
     assert.deepEqual(Object.keys(original), ['schemaVersion', 'date', 'metrics', 'reminders']);
     model.standingRun = 1199;
     const restored = new WellnessModel(modelState(dailyRecord(model.serialize(original.date))));
-    restored.update({dt: 1, wallMs: 1000000, localActive: true, deskReady: true, position: 'standing', idleSeconds: 999});
+    restored.update({dt: 1, wallMs: 1000000, localActive: true, deskReady: true, position: 'standing', idleSeconds: 60});
     assert.equal(restored.standComplete, true);
     assert.equal(restored.seated, 0);
+    assert.equal(restored.todayStanding, original.metrics.standingSeconds);
 });
 
 test('invalid dates, negative metrics, unsupported versions and corrupt records cannot enter history', () => {

@@ -17,16 +17,14 @@ class WaylandCounterTests(unittest.TestCase):
         self.addCleanup(self.reader.close)
         self.events = DeviceEvents(self.reader.counter)
 
-    def test_presses_repeats_buttons_and_scroll_feed_the_existing_model(self):
+    def test_presses_repeats_and_buttons_feed_the_existing_model(self):
         self.events.consume(
             event(1, 30, 1)
             + event(1, 30, 2)
             + event(1, 30, 0)
             + event(1, 272, 1)
             + event(1, 272, 0)
-            + event(1, 275, 1)
-            + event(2, 8, -1)
-            + event(2, 11, 120),
+            + event(1, 275, 1),
             1,
             1000,
         )
@@ -35,18 +33,22 @@ class WaylandCounterTests(unittest.TestCase):
         self.assertEqual(batch['lastInputWallMs'], 1000000)
         self.assertEqual(self.reader.counter.snapshot(ready=True)['keys'], 0)
 
-    def test_motion_is_sampled_and_does_not_end_hand_rest(self):
+    def test_motion_scrolling_and_touchpad_contact_do_not_end_hand_rest(self):
         self.events.consume(event(1, 30, 1), 1, 1000)
         self.reader.counter.snapshot(ready=True)
-        self.events.consume(event(2, 0, 150) + event(2, 1, -90), 100, 1099)
+        self.events.consume(
+            event(2, 0, 150) + event(2, 1, -90) + event(2, 8, -1) + event(2, 11, 120) + event(1, 330, 1),
+            100,
+            1099,
+        )
         self.events.consume(event(2, 0, 1), 100.1, 1099.1)
         self.events.consume(event(2, 0, 1), 100.3, 1099.3)
         batch = self.reader.counter.snapshot(ready=True)
-        self.assertEqual((batch['moves'], batch['lastInputWallMs']), (2, 1000000))
+        self.assertEqual((batch['moves'], batch['clicks'], batch['lastInputWallMs']), (2, 0, 1000000))
         self.events.consume(event(1, 30, 1), 121, 1120)
         self.assertTrue(self.reader.counter.snapshot(ready=True)['hadBreak'])
 
-    def test_media_keys_super_l_and_touchpad_contacts(self):
+    def test_media_keys_and_super_l_do_not_end_hand_rest(self):
         self.events.consume(
             event(1, 164, 1)
             + event(1, 115, 1)
@@ -59,7 +61,7 @@ class WaylandCounterTests(unittest.TestCase):
         )
         batch = self.reader.counter.snapshot(ready=True)
         self.assertEqual((batch['keys'], batch['lastInputWallMs']), (0, 0))
-        self.events.consume(event(1, 38, 1) + event(1, 330, 1) + event(3, 53, 234), 2, 1001)
+        self.events.consume(event(1, 38, 1) + event(3, 53, 234), 2, 1001)
         batch = self.reader.counter.snapshot(ready=True)
         self.assertEqual((batch['keys'], batch['clicks'], batch['moves']), (1, 0, 1))
         self.assertEqual(batch['lastInputWallMs'], 1001000)

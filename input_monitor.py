@@ -18,7 +18,7 @@ import time
 
 # A hand break: this long without input. The extension passes the same threshold
 # (inputResetIdle) with --break-seconds.
-BREAK_SECONDS = 60
+BREAK_SECONDS = 120
 
 # Keys that are not hand work, so pausing the music and locking the screen on the way out
 # keep a hand break running. X11 keysyms: XF86AudioLowerVolume, Mute, RaiseVolume, Play,
@@ -94,7 +94,8 @@ class InputCounter:
                 self._counts['moves'] += 1
                 self._last_motion = monotonic
             return
-        if event_type not in (2, 4):  # KeyPress, ButtonPress
+        if event_type not in (2, 4) or (event_type == 4 and detail in (4, 5, 6, 7)):
+            # Only key presses and button presses other than wheel steps restart hand activity.
             return
         if self._last_input and monotonic - self._last_input >= self._break_seconds:
             self._had_break = True
@@ -102,8 +103,7 @@ class InputCounter:
         self._last_wall = wall
         if event_type == 2:
             self._counts['keys'] += 1
-        # Wheel steps are activity but are not mouse clicks.
-        elif detail not in (4, 5, 6, 7):
+        else:
             self._counts['clicks'] += 1
 
     def snapshot(self, *, ready: bool) -> dict:

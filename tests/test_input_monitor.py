@@ -28,13 +28,13 @@ class InputCounterTests(unittest.TestCase):
         self.assertEqual(batch['lastInputWallMs'], 1000000)
         self.assertEqual(counter.snapshot(ready=True)['keys'], 0)
 
-    def test_pointer_motion_alone_is_counted_but_does_not_end_a_hand_break(self):
+    def test_pointer_motion_and_scrolling_do_not_end_a_hand_break(self):
         counter = InputCounter()
         counter.consume(frame(2), 1, 1000)
         counter.snapshot(ready=True)
-        counter.consume(frame(6), 100, 1099)
+        counter.consume(frame(6) + frame(4, 4), 100, 1099)
         batch = counter.snapshot(ready=True)
-        self.assertEqual((batch['moves'], batch['lastInputWallMs']), (1, 1000000))
+        self.assertEqual((batch['moves'], batch['clicks'], batch['lastInputWallMs']), (1, 0, 1000000))
         counter.consume(frame(2), 200, 1199)
         self.assertTrue(counter.snapshot(ready=True)['hadBreak'])
 
@@ -88,12 +88,12 @@ class InputCounterTests(unittest.TestCase):
             dict(media=frozenset({172, 208, 123}), supers=frozenset({133, 134}), screen_lock=frozenset({46})),
         )
 
-    def test_one_minute_boundary_and_reset_is_reported_once(self):
+    def test_two_minute_boundary_and_reset_is_reported_once(self):
         counter = InputCounter()
         counter.consume(frame(2), 1, 1000)
-        counter.consume(frame(2), 60.5, 1059.5)
-        self.assertFalse(counter.snapshot(ready=True)['hadBreak'])
         counter.consume(frame(2), 120.5, 1119.5)
+        self.assertFalse(counter.snapshot(ready=True)['hadBreak'])
+        counter.consume(frame(2), 240.5, 1239.5)
         self.assertTrue(counter.snapshot(ready=True)['hadBreak'])
         self.assertFalse(counter.snapshot(ready=True)['hadBreak'])
 
@@ -108,13 +108,6 @@ class InputCounterTests(unittest.TestCase):
         self.assertEqual(batches[0], batches[1])
         self.assertEqual(batches[1], batches[2])
         self.assertEqual(set(batches[0]), {'keys', 'clicks', 'moves', 'ready', 'hadBreak', 'lastInputWallMs'})
-
-    def test_scroll_steps_are_activity_but_not_mouse_clicks(self):
-        counter = InputCounter()
-        counter.consume(bytes([4, 4]) + bytes(30), 1, 1000)
-        batch = counter.snapshot(ready=True)
-        self.assertEqual(batch['clicks'], 0)
-        self.assertEqual(batch['lastInputWallMs'], 1000000)
 
     def test_remote_display_is_rejected(self):
         self.assertTrue(local_display(':1'))

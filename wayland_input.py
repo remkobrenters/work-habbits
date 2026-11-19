@@ -104,13 +104,8 @@ class DeviceEvents:
                 elif 272 <= code <= 279 and value == 1:  # BTN_LEFT..BTN_TASK.
                     # Use a non-wheel detail: evdev wheels are EV_REL, not buttons 4–7.
                     self.counter.consume_event(4, 1, monotonic, wall)
-                elif code == 330 and value == 1:  # BTN_TOUCH: touchpad contact is activity, not a click.
-                    self.counter.consume_event(4, 4, monotonic, wall)
-            elif event_type == 2 and value:  # EV_REL
-                if code in (0, 1):  # REL_X/Y
-                    self.counter.consume_event(6, 0, monotonic, wall)
-                elif code in (6, 8, 11, 12):  # Wheel, horizontal wheel, and high-resolution variants.
-                    self.counter.consume_event(4, 4, monotonic, wall)
+            elif event_type == 2 and code in (0, 1) and value:  # REL_X/Y
+                self.counter.consume_event(6, 0, monotonic, wall)
             elif event_type == 3 and code in (0, 1, 53, 54):  # ABS_X/Y, ABS_MT_POSITION_X/Y.
                 self.counter.consume_event(6, 0, monotonic, wall)
                 # Touchpad gestures are interpreted by libinput after evdev. Treat contact
