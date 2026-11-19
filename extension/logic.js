@@ -3,7 +3,7 @@ export const SETTINGS = {
     seatedDue: 7200, seatedLate: 7320, standRequired: 1200, standLate: 1320,
     inputDue: 3600, inputLate: 3660, inputResetIdle: 120,
     shortInputDue: 1200, shortInputLate: 1260, shortInputResetIdle: 20,
-    inputActiveWindow: 10, postureActiveWindow: 60, deskSitCm: 80, deskStandCm: 112,
+    inputActiveWindow: 10, postureActiveWindow: 60, postureResetIdle: 900, deskSitCm: 80, deskStandCm: 112,
     redWindow: 600, scoreDays: 14,
     seatedSnooze: 900, standSnooze: 900, inputSnooze: 600, snoozeAway: 900, snoozePenalty: 2,
 };
@@ -103,7 +103,7 @@ function validSnooze(snooze) {
 export class WellnessModel {
     constructor(saved = null) {
         for (const key of ['seated', 'standingRun', 'input', 'shortInput', 'todaySitting', 'todayStanding',
-            'todayAway', 'keys', 'clicks', 'moves', 'lastInputWallMs'])
+            'todayAway', 'keys', 'clicks', 'moves', 'lastInputWallMs', 'lastPostureActivityWallMs'])
             this[key] = nonnegative(saved?.[key]);
         this.standComplete = saved?.standComplete === true;
         this.heeded = nonnegative(saved?.heeded);
@@ -243,7 +243,17 @@ export class WellnessModel {
             this._advance('shortInput', dt, cfg);
         }
         this.lastPosition = deskReady ? position : 'unknown';
-        if (!deskReady) return;
+        const previousActivity = this.lastPostureActivityWallMs;
+        const desktopActivity = nonnegative(wallMs - idleSeconds * 1000);
+        // Input on the lock screen must not restart the posture session.
+        if (localActive || !previousActivity) this.lastPostureActivityWallMs = desktopActivity;
+        const awaySeconds = localActive || !previousActivity ? idleSeconds : (wallMs - previousActivity) / 1000;
+        const longIdle = Number.isFinite(awaySeconds) && awaySeconds >= cfg.postureResetIdle;
+        // A return between ticks can clear desktop idle before we observe the threshold.
+        const returnedAfterBreak = localActive && previousActivity > 0 &&
+            desktopActivity - previousActivity >= cfg.postureResetIdle * 1000;
+        if (position !== 'away' && (longIdle || returnedAfterBreak)) this.resetPosture();
+        if (!deskReady || (position !== 'away' && longIdle)) return;
         if (position === 'sitting') {
             if (this.standComplete && this._roundColor('stand', cfg) === 'orange') this.heeded++;
             this.standingRun = 0;
@@ -328,7 +338,7 @@ export class WellnessModel {
     serialize(date) {
         const state = {date, standComplete: this.standComplete, heeded: this.heeded, missed: this.missed};
         for (const key of ['seated', 'standingRun', 'input', 'shortInput', 'todaySitting', 'todayStanding',
-            'todayAway', 'keys', 'clicks', 'moves', 'lastInputWallMs']) state[key] = this[key];
+            'todayAway', 'keys', 'clicks', 'moves', 'lastInputWallMs', 'lastPostureActivityWallMs']) state[key] = this[key];
         state.snoozes = Object.fromEntries(Object.entries(this.snoozes).map(([name, value]) => [name, {...value}]));
         return state;
     }

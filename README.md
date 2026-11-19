@@ -146,7 +146,7 @@ The top bar shows Posture and a single Hands item for the next short or long han
 
 Orange is silent. When a reminder turns red, a sound plays and repeats every 15 seconds by default while you keep working (once, every 15 or 30 seconds, or every minute; three bundled sounds at an adjustable volume, 70% by default). Locked, idle and paused time stays silent, and GNOME's Do Not Disturb mutes the sound while the bars keep blinking. Reminders never show desktop banners. Sounds play through `gst-play-1.0`.
 
-Sitting/standing activity totals accumulate while the local desktop is active and idle time is below 60 seconds. A standing break continues without input while the local session is unlocked. A marked walk continues while locked, but pauses when tracking is disabled or the login becomes inactive. Mark your return explicitly; manual posture is your report, not sensor data.
+Sitting/standing activity totals accumulate while the local desktop is active and idle time is below 60 seconds. A standing break can continue without input while the local session is unlocked. After **15 minutes away from the desktop**, the posture timer starts fresh in whichever posture you return to. This also works when you lock the screen. A marked walk continues while locked, but pauses when tracking is disabled or the login becomes inactive. Mark your return from a walk explicitly. In manual mode, select sitting or standing to match your posture.
 
 Both hand timers run while a key press or click happened within the last 10 seconds. Scrolling, pointer motion, touchpad contact, media keys, and Super+L leave hand rests running. Pointer movement is sampled at most five times per second. Device key auto-repeat counts as presses.
 

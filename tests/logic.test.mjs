@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {SETTINGS, WellnessModel, deskState, isFreshHeartbeat, isLocalDesktop, isLocalSession, isWayland,
     preferencesProblem, preferencesOf, configure} from '../extension/logic.js';
+import {dailyRecord, modelState} from '../extension/history.js';
 
 const now = 1_000_000;
 const tick = (model, overrides = {}, cfg = SETTINGS) => model.update({dt: 1, wallMs: now, localActive: true,
@@ -48,11 +49,11 @@ test('seated thresholds, partial stands, full stand and return to sitting form a
     model.seated = SETTINGS.seatedLate;
     assert.equal(model.deskColor(true), 'red');
     tick(model, {position: 'standing'});
-    tick(model, {position: 'sitting', idleSeconds: 999});
+    tick(model, {position: 'sitting', idleSeconds: 60});
     assert.equal(model.standingRun, 0);
     assert.equal(model.seated, SETTINGS.seatedLate);
     model.standingRun = SETTINGS.standRequired - 1;
-    tick(model, {position: 'standing', idleSeconds: 999});
+    tick(model, {position: 'standing', idleSeconds: 60});
     assert.equal(model.standComplete, true);
     assert.equal(model.seated, 0);
     assert.equal(model.deskColor(true), 'orange');
@@ -75,6 +76,55 @@ test('disconnect, idle, lock and suspend pause posture without erasing standing 
     assert.equal(model.todaySitting, 0);
     tick(model, {dt: -1});
     assert.equal(model.seated, 0);
+});
+
+for (const {position, timer, saved} of [
+    {position: 'sitting', timer: 'seated', saved: {seated: SETTINGS.seatedDue}},
+    {position: 'standing', timer: 'standingRun', saved: {standingRun: SETTINGS.standRequired, standComplete: true}},
+]) {
+    test(`15 minutes of desktop idle start a fresh ${position} session in the same posture`, () => {
+        const model = new WellnessModel({...saved, todaySitting: 1200, todayStanding: 600, heeded: 3});
+        tick(model, {position, dt: 0});
+        assert.equal(model.snooze(now).length, 1);
+
+        tick(model, {position, wallMs: now + 899999, idleSeconds: 899.999});
+        assert.equal(model[timer], saved[timer]);
+        tick(model, {position, wallMs: now + 900000, idleSeconds: 900});
+        tick(model, {position, wallMs: now + 960000, idleSeconds: 960});
+        assert.deepEqual([model.seated, model.standingRun, model.standComplete, model.lastPosition],
+            [0, 0, false, position]);
+        assert.deepEqual(model.snoozes, {});
+        assert.deepEqual([model.todaySitting, model.todayStanding, model.heeded, model.missed], [1200, 600, 3, 0]);
+
+        tick(model, {position, wallMs: now + 961000});
+        assert.equal(model[timer], 1);
+    });
+}
+
+test('returning between ticks starts fresh even after desktop idle has cleared', () => {
+    const model = new WellnessModel({seated: 1800});
+    tick(model, {dt: 0});
+    tick(model, {wallMs: now + 899500, idleSeconds: 899.5});
+    tick(model, {wallMs: now + 900500, idleSeconds: 0.25, position: 'standing'});
+    assert.deepEqual([model.seated, model.standingRun, model.lastPosition], [0, 1, 'standing']);
+});
+
+test('unlocking after 15 minutes starts a fresh round even if the lock screen saw input', () => {
+    const model = new WellnessModel({standingRun: SETTINGS.standRequired, standComplete: true});
+    tick(model, {position: 'standing', dt: 0});
+    tick(model, {position: 'standing', localActive: false, wallMs: now + 1000});
+    tick(model, {position: 'standing', localActive: false, wallMs: now + 899000});
+    assert.equal(model.standComplete, true);
+    tick(model, {position: 'sitting', wallMs: now + 900000});
+    assert.deepEqual([model.seated, model.standingRun, model.heeded], [1, 0, 0]);
+});
+
+test('returning from a break starts fresh when GNOME unloaded the extension while locked', () => {
+    const model = new WellnessModel({standingRun: 600});
+    tick(model, {position: 'standing', dt: 0});
+    const restored = new WellnessModel(modelState(dailyRecord(model.serialize('2026-10-30'))));
+    tick(restored, {position: 'standing', wallMs: now + 900000});
+    assert.deepEqual([restored.standingRun, restored.todayStanding], [1, 1]);
 });
 
 test('fixed-desk walks are explicit and can finish while locked; remote or paused sessions cannot add time', () => {
@@ -204,7 +254,7 @@ test('habit score rewards timely hand rest and full posture breaks, counts penal
     timely.onInputBatch(batch({lastInputWallMs: now + 120000, hadBreak: true}));
     assert.equal(timely.heeded, 1);
     timely.standingRun = SETTINGS.standRequired - 1;
-    tick(timely, {position: 'standing', idleSeconds: 999});
+    tick(timely, {position: 'standing', idleSeconds: 60});
     tick(timely, {position: 'sitting'});
     assert.equal(timely.heeded, 3);
     assert.equal(timely.missed, 0);
@@ -227,14 +277,15 @@ test('habit score rewards timely hand rest and full posture breaks, counts penal
 });
 
 test('locking, leaving and prolonged inactivity forgive snoozes without penalty', () => {
-    for (const overrides of [{localActive: false}, {idleSeconds: SETTINGS.snoozeAway},
+    const cfg = {...SETTINGS, snoozeAway: 600};
+    for (const overrides of [{localActive: false}, {idleSeconds: cfg.snoozeAway},
         {localActive: false, deskReady: false}]) {
         const model = new WellnessModel({seated: SETTINGS.seatedLate + SETTINGS.redWindow / 2, missed: 1,
             lastInputWallMs: now});
         model.lastPosition = 'sitting';
         model.snooze(now);
         assert.equal(model.missed, 0, 'Snooze takes back the penalty already charged');
-        tick(model, {wallMs: now + 3600000, ...overrides});
+        tick(model, {wallMs: now + 600000, ...overrides}, cfg);
         assert.equal(model.missed, 0);
         assert.equal(model.snoozes.seated.state, 'forgiven');
     }
@@ -288,12 +339,12 @@ test('hands and the sit-down reminder reset their own timer; a reset stand earns
 
 test('a change before red earns a point; in red before the first penalty it is neutral', () => {
     const early = new WellnessModel({seated: SETTINGS.seatedLate - 1, standingRun: SETTINGS.standRequired - 1});
-    tick(early, {position: 'standing', idleSeconds: 999});
+    tick(early, {position: 'standing', idleSeconds: 60});
     assert.equal(early.heeded, 1);
     const red = new WellnessModel({seated: SETTINGS.seatedLate - 1});
     tick(red);
     red.standingRun = SETTINGS.standRequired - 1;
-    tick(red, {position: 'standing', idleSeconds: 999});
+    tick(red, {position: 'standing', idleSeconds: 60});
     assert.deepEqual([red.heeded, red.missed], [0, 0]);
     const hands = new WellnessModel({input: SETTINGS.inputLate - 1, lastInputWallMs: now});
     tick(hands);
