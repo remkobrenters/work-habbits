@@ -9,9 +9,21 @@ case ${1:-desktop} in
     gnome50) task_packages=(gjs gir1.2-mutter-18 python3) ;;
     *) printf 'Unknown CI dependency set\n' >&2; exit 2 ;;
 esac
-task_options=(-o Acquire::Retries=2 -o Acquire::http::Timeout=20 -o Acquire::https::Timeout=20 -o Dpkg::Options::=--force-confold)
-task_log=$(mktemp)
-trap 'rm -f "$task_log"' EXIT
+# Use the same signed Ubuntu sources on hosted runners, regardless of their default mirror.
+task_suite=$(awk -F= '$1 == "VERSION_CODENAME" {gsub(/"/, "", $2); print $2}' /etc/os-release)
+task_dir=$(mktemp -d)
+trap 'rm -r -- "$task_dir"' EXIT
+chmod 755 "$task_dir"  # APT reads the mirror list as its unprivileged download user.
+printf '%s\tpriority:%s\n' https://archive.ubuntu.com/ubuntu 1 https://mirrors.mit.edu/ubuntu 2 > "$task_dir/mirrors"
+cat > "$task_dir/ubuntu.list" <<EOF
+deb [signed-by=/usr/share/keyrings/ubuntu-archive-keyring.gpg] mirror+file:$task_dir/mirrors $task_suite main universe
+deb [signed-by=/usr/share/keyrings/ubuntu-archive-keyring.gpg] mirror+file:$task_dir/mirrors $task_suite-updates main universe
+deb [signed-by=/usr/share/keyrings/ubuntu-archive-keyring.gpg] https://security.ubuntu.com/ubuntu $task_suite-security main universe
+EOF
+
+task_options=(-o "Dir::Etc::sourcelist=$task_dir/ubuntu.list" -o Dir::Etc::sourceparts=-
+    -o Acquire::Retries=1 -o Acquire::https::Timeout=20 -o Dpkg::Options::=--force-confold)
+task_log="$task_dir/apt.log"
 
 run_apt() {
     local task_deadline=$1 task_status task_line
@@ -32,5 +44,5 @@ run_apt() {
     fi
 }
 
-run_apt 90s update
+run_apt 120s update --error-on=any
 run_apt 180s install -y --no-install-recommends "${task_packages[@]}"
