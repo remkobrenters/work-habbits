@@ -1,7 +1,7 @@
 // Pure reminder logic. Durations are seconds; wall-clock values are milliseconds.
 export const SETTINGS = {
     seatedDue: 7200, seatedLate: 7320, standRequired: 1200, standLate: 1320,
-    inputDue: 3600, inputLate: 3660, inputResetIdle: 60,
+    inputDue: 3600, inputLate: 3660, inputResetIdle: 120,
     shortInputDue: 1200, shortInputLate: 1260, shortInputResetIdle: 20,
     inputActiveWindow: 10, postureActiveWindow: 60, deskSitCm: 80, deskStandCm: 112,
     redWindow: 600, scoreDays: 14,

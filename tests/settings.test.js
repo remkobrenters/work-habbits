@@ -18,7 +18,7 @@ try {
     assert(settings.get_uint('red-window') === 10 && settings.get_uint('seated-grace') === 2, 'Bounded red window defaults');
     assert(settings.get_uint('short-input-due') === 20 && settings.get_uint('short-input-break') === 20 &&
         settings.get_uint('input-due') === 60, 'Two hand break defaults');
-    assert(!settings.settings_schema.has_key('input-break'), 'Both hand timers reset after a fixed one-minute rest');
+    assert(!settings.settings_schema.has_key('input-break'), 'Both hand timers reset after a fixed two-minute rest');
     assert(!settings.settings_schema.has_key('seated-repeat'), 'Unbounded miss intervals are gone');
     assert(!settings.settings_schema.has_key('notifications-enabled'), 'Reminder banners are gone');
     assert(settings.get_boolean('sound-enabled') && settings.get_uint('sound-effect') === 3 &&
@@ -32,7 +32,7 @@ try {
         'Manual posture comes from the shared settings');
     settings.set_uint('input-due', 30);
     configure(preferencesOf(settings));
-    assert(SETTINGS.inputDue === 1800 && SETTINGS.inputResetIdle === 60, 'Reminder intervals are configurable; rest stays one minute');
+    assert(SETTINGS.inputDue === 1800 && SETTINGS.inputResetIdle === 120, 'Reminder intervals are configurable; rest stays two minutes');
     settings.set_uint('short-input-break', 30);
     configure(preferencesOf(settings));
     assert(SETTINGS.shortInputResetIdle === 30, 'Short break duration uses seconds');

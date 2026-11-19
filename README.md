@@ -139,7 +139,7 @@ Configurable defaults:
 - After **120 active seated minutes**, remind you to stand or take a movement break; red after 2 more active minutes.
 - A **20-minute stand or marked movement break** resets the seated timer. Remind you to return to sitting, with a 2-minute orange warning before red.
 - After **20 active input minutes**, remind you to take a **20-second short hand break**; red after one more active minute. Short breaks cannot be snoozed.
-- After **60 active input minutes**, show the long hand-break reminder; red after one more active minute. **One continuous minute without typing or clicking resets both hand timers**, including ordinary idle time before either reminder is due. A 20-second rest still completes only the short break.
+- After **60 active input minutes**, show the long hand-break reminder; red after one more active minute. **Two continuous minutes without typing or clicking reset both hand timers**, even before either reminder is due. A 20-second rest still completes only the short break.
 - Red lasts at most **10 active minutes**: a penalty halfway, another at the end, then the timer for your current posture or your hands starts a new round. An ignored reminder never charges more than two misses per round.
 
 The top bar shows Posture and a single Hands item for the next short or long hand break, each with a bar that fills toward the next change and the time until it. Due and overdue hand breaks take priority over upcoming or snoozed ones. The menu keeps separate short and long hand-break details. Bars, and the optional icons, are green before a deadline, blink orange slowly when due, blink red fast when too late, and are gray when unavailable. In orange the time counts down to red; in red it counts down to the next penalty.
@@ -148,7 +148,7 @@ Orange is silent. When a reminder turns red, a sound plays and repeats every 15 
 
 Sitting/standing activity totals accumulate while the local desktop is active and idle time is below 60 seconds. A standing break continues without input while the local session is unlocked. A marked walk continues while locked, but pauses when tracking is disabled or the login becomes inactive. Mark your return explicitly; manual posture is your report, not sensor data.
 
-Both hand timers run while input happened within the last 10 seconds. Typing, clicks, and scrolling indicate activity; wheel steps are not clicks. Pointer movement is sampled at most five times per second; ordinary mouse motion does not restart hand activity. Wayland touchpad contact and finger motion also indicate hand activity. Media keys and Super+L do not end a hand break. Device key auto-repeat counts as presses.
+Both hand timers run while a key press or click happened within the last 10 seconds. Scrolling, pointer motion, touchpad contact, media keys, and Super+L leave hand rests running. Pointer movement is sampled at most five times per second. Device key auto-repeat counts as presses.
 
 Locking, switching users/TTYs, and remote sessions stop input collection. A Bluetooth disconnect pauses sensor-based posture timers. Suspend and process downtime never count as inferred activity. Daily totals and reminder progress persist across extension restarts and start anew each local calendar day.
 
@@ -222,7 +222,7 @@ journalctl --user -u work-habbits-desk.service -n 30 --no-pager
 
 Diagnostic output can include local paths, Bluetooth addresses, and activity totals; inspect it before sharing. Bluetooth status being absent/stale is normal in manual/disabled mode. The service runs a settings watcher; a running service does not imply a connected desk. The panel shows live totals; disk snapshots update every 30 seconds.
 
-Reinstall/reload for missing helpers. On Wayland, choose **Enable Wayland input…** if the Long hand break card reports missing access. If setup fails, verify that `pkexec` and udev are installed and that `/etc/udev/rules.d/70-work-habbits-input.rules` has not been replaced with a custom file or symlink; setup preserves those rather than overwriting them. Verify typing and clicking increase counts in both a native Wayland app and an XWayland app, then confirm 20 seconds of rest resets the short timer and one minute resets both timers, even before a reminder is due. Check lock/unlock, pause/resume, keyboard/mouse reconnects and manual posture toggles before testing Bluetooth with clear travel space and an accessible handset. Simulated tests cannot certify hardware behavior.
+Reinstall/reload for missing helpers. On Wayland, choose **Enable Wayland input…** if the Long hand break card reports missing access. If setup fails, verify that `pkexec` and udev are installed and that `/etc/udev/rules.d/70-work-habbits-input.rules` has not been replaced with a custom file or symlink; setup preserves those rather than overwriting them. Verify typing and clicking increase counts in both a native Wayland app and an XWayland app, then confirm 20 seconds of rest resets the short timer and two minutes reset both timers, even before a reminder is due. Check lock/unlock, pause/resume, keyboard/mouse reconnects and manual posture toggles before testing Bluetooth with clear travel space and an accessible handset. Simulated tests cannot certify hardware behavior.
 
 Uninstall with `./uninstall.sh`. History and preferences remain. To reset preferences while installed:
 
