@@ -1,6 +1,6 @@
 # work-habbits
 
-**v1.6.0** · [Release notes](docs/releases/v1.6.0.md)
+**v1.7.0** · [Release notes](docs/releases/v1.7.0.md)
 
 A small GNOME extension for desk posture, movement breaks, and keyboard/mouse activity. The top bar shows posture and the next hand break; the menu keeps colored reminder cards, a habit score graph, and daily/weekly/monthly totals. Activity stays on your computer; there are no accounts, telemetry, HTTP clients, or remote control endpoints.
 
