@@ -270,7 +270,7 @@ export default class WorkHabbitsExtension extends Extension {
             if (gauge.blink !== item.gauge?.blink) item.blinkStarted = now;
             item.gauge = gauge;
             item.icon.visible = icons;
-            item.time.text = gauge.seconds === null ? '—' : formatTimer(gauge.seconds);
+            item.time.text = gauge.seconds === null ? (gauge.color === 'gray' ? '—' : 'Done') : formatTimer(gauge.seconds);
         }
         const blinking = Object.values(gauges).some(gauge => gauge.blink);
         if (blinking && !this._blinkId) {
@@ -626,15 +626,18 @@ export default class WorkHabbitsExtension extends Extension {
         const posture = this._postureCard;
         const elapsed = resting ? model.standingRun : model.seated;
         const due = resting ? SETTINGS.standRequired : SETTINGS.seatedDue;
-        const late = resting ? SETTINGS.standLate : SETTINGS.seatedLate;
+        const meterEnd = resting ? due : SETTINGS.seatedLate;
+        const target = `${Math.floor(due / 60)}m`;
+        const minimumMet = resting && model.standComplete;
         posture.big.text = `${Math.floor(elapsed / 60)}m`;
         posture.big.set_style(`color: ${COLORS[deskColor]};`);
-        posture.of.text = `of ${Math.floor(due / 60)}m ${resting ? breakName : 'seated'}`;
-        posture.meter.setLevel({fraction: elapsed / late, color: COLORS[deskColor], tick: due / late});
-        posture.hint.text = reason || tooLate(gauges.posture, resting ? 'stand' : 'seated') || (resting
-            ? model.standComplete ? 'Break complete; return to sitting' : `${formatTimer(due - elapsed)} to go`
-            : model.seated >= due ? `Time for ${mode === 'disabled' ? 'a movement break' : 'a stand'}`
-                : `Next break in ${formatTimer(due - elapsed)}`);
+        posture.of.text = resting ? (minimumMet ? breakName : `minimum ${target} ${breakName}`) : `of ${target} seated`;
+        posture.meter.setLevel({fraction: minimumMet ? 1 : elapsed / meterEnd,
+            color: COLORS[deskColor], tick: resting ? null : due / meterEnd});
+        posture.hint.text = reason || (resting
+            ? minimumMet ? 'Minimum met' : `${formatTimer(due - elapsed)} to reach minimum`
+            : tooLate(gauges.posture, 'seated') || (model.seated >= due ? `Time for ${mode === 'disabled' ? 'a movement break' : 'a stand'}`
+                : `Next break in ${formatTimer(due - elapsed)}`));
         if (!reason && !resting && idleSeconds >= SETTINGS.postureActiveWindow)
             posture.hint.text = 'Paused; no recent activity';
         this._height.text = mode === 'bluetooth' ? `Desk: ${this._deskReady ? `${this._desk.height_cm} cm` : 'unavailable'}`
@@ -683,7 +686,7 @@ export default class WorkHabbitsExtension extends Extension {
             : this._store.warnings.length ? 'Unreadable history preserved; see logs' : '');
         status(this._soundItem, this._soundError);
         this._snoozeButton.visible = active && model.snoozable().length > 0;
-        const names = {seated: 'Stand', stand: 'Sit', input: 'Long hands'};
+        const names = {seated: 'Stand', input: 'Long hands'};
         const states = model.snoozeStates();
         this._snoozeHint.text = Object.entries(states).map(([name, state]) => {
             const time = formatTimer(model.snoozeSeconds(name));

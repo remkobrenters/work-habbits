@@ -1,6 +1,6 @@
 # work-habbits
 
-**v1.6.0** · [Release notes](docs/releases/v1.6.0.md)
+**v1.7.0** · [Release notes](docs/releases/v1.7.0.md)
 
 A small GNOME extension for desk posture, movement breaks, and keyboard/mouse activity. The top bar shows posture and the next hand break; the menu keeps colored reminder cards, a habit score graph, and daily/weekly/monthly totals. Activity stays on your computer; there are no accounts, telemetry, HTTP clients, or remote control endpoints.
 
@@ -14,7 +14,7 @@ Posture and Hands each show a label, a bar that fills toward the next change, an
 
 | Plenty of time | Change due | Too late |
 | --- | --- | --- |
-| ![Top bar with green Posture and Hands bars](docs/previews/panel-green.png) | ![Full orange Posture bar that blinks slowly, 1 minute 12 seconds before red](docs/previews/panel-orange.png) | ![Full red Posture bar that blinks fast, 3 minutes 48 seconds until the next penalty](docs/previews/panel-red.png) |
+| ![Top bar with a full green Posture bar labeled Done and a green Hands countdown](docs/previews/panel-green.png) | ![Full orange Posture bar that blinks slowly, 1 minute 12 seconds before red](docs/previews/panel-orange.png) | ![Full red Posture bar that blinks fast, 3 minutes 48 seconds until the next penalty](docs/previews/panel-red.png) |
 
 | Snoozed | Hand input unavailable | Optional icons |
 | --- | --- | --- |
@@ -137,10 +137,10 @@ The user-level uninstaller leaves this optional system rule in place. Remove it 
 Configurable defaults:
 
 - After **120 active seated minutes**, remind you to stand or take a movement break; red after 2 more active minutes.
-- A **20-minute stand or marked movement break** resets the seated timer. Remind you to return to sitting, with a 2-minute orange warning before red.
+- You can start a stand or marked movement break at any time. Reaching the **20-minute minimum** resets the seated timer. If you sit sooner, the previous seated timer resumes. Once you reach the minimum, the top bar shows **Done** and you can keep standing or walking as long as you like.
 - After **20 active input minutes**, remind you to take a **20-second short hand break**; red after one more active minute. Short breaks cannot be snoozed.
 - After **60 active input minutes**, show the long hand-break reminder; red after one more active minute. **Two continuous minutes without typing or clicking reset both hand timers**, even before either reminder is due. A 20-second rest still completes only the short break.
-- Red lasts at most **10 active minutes**: a penalty halfway, another at the end, then the timer for your current posture or your hands starts a new round. An ignored reminder never charges more than two misses per round.
+- Red lasts at most **10 active minutes**: a penalty halfway, another at the end, then the seated or hand timer starts a new round. An ignored reminder never charges more than two misses per round.
 
 The top bar shows Posture and a single Hands item for the next short or long hand break, each with a bar that fills toward the next change and the time until it. Due and overdue hand breaks take priority over upcoming or snoozed ones. The menu keeps separate short and long hand-break details. Bars, and the optional icons, are green before a deadline, blink orange slowly when due, blink red fast when too late, and are gray when unavailable. In orange the time counts down to red; in red it counts down to the next penalty.
 
@@ -152,9 +152,9 @@ Both hand timers run while a key press or click happened within the last 10 seco
 
 Locking, switching users/TTYs, and remote sessions stop input collection. A Bluetooth disconnect pauses sensor-based posture timers. Suspend and process downtime never count as inferred activity. Daily totals and reminder progress persist across extension restarts and start anew each local calendar day.
 
-Tracking can be paused in Settings; this pauses collection, reminders and the Bluetooth helper while keeping history. The menu shows a **Snooze — leaving soon** button while a posture or long hand reminder is orange or red, once per round. It snoozes standing/sitting reminders for 15 minutes and long hand reminders for 10 minutes (configurable). Short hand reminders continue during a snooze. A snoozed bar stays steady orange, its sound stops, and penalties already charged in this round are taken back. If you are still working when the snooze runs out, a fresh red window starts in which both penalties count twice by default, so at most four misses. Taking the break clears the snooze. Locking, leaving the local session or prolonged idle time cancels the double penalty. Locked and idle time never advances a red window. Snoozes survive Shell restarts.
+Tracking can be paused in Settings; this pauses collection, reminders and the Bluetooth helper while keeping history. The menu shows a **Snooze — leaving soon** button while a posture or long hand reminder is orange or red, once per round. It snoozes the reminder to stand or take a walk for 15 minutes and long hand reminders for 10 minutes (configurable). Short hand reminders continue during a snooze. A snoozed bar stays steady orange, its sound stops, and penalties already charged in this round are taken back. If you are still working when the snooze runs out, a fresh red window starts in which both penalties count twice by default, so at most four misses. Taking the break clears the snooze. Locking, leaving the local session or prolonged idle time cancels the double penalty. Locked and idle time never advances a red window. Snoozes survive Shell restarts.
 
-The red-to-green habit score shows timely breaks divided by all scored reminders over the last 14 active days (configurable). Completing a posture break before red, returning to sitting before red, and completing either hand break after orange but before red earn points. Doing so in red before the first penalty earns nothing and costs nothing. A red window charges a miss halfway and another at its end, then starts a new round. Ordinary hand rests before a reminder earn no points. Inactive time adds no misses.
+The red-to-green habit score shows timely breaks divided by all scored reminders over the last 14 active days (configurable). Standing or walking for the minimum earns one point if you started before the seated reminder turned red, including before it was due. Completing either hand break while its reminder is orange earns one point. A break taken in red before the first penalty leaves the score unchanged. A red window charges a miss halfway and another at its end, then starts a new round. Ordinary hand rests before a reminder earn no points. Inactive time adds no misses.
 
 ## Bluetooth protocol and safety
 

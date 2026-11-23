@@ -73,7 +73,7 @@ export default class WorkHabbitsPreferences extends ExtensionPreferences {
             [desk, [['desk-sit', 'Sitting height (cm)'], ['desk-stand', 'Standing height (cm)']]],
             [new Adw.PreferencesGroup({title: 'Posture reminders (minutes)'}), [
                 ['seated-due', 'Stand or take a walk after'], ['seated-grace', 'Orange warning before red (stand up)'],
-                ['stand-required', 'Standing / movement break length'], ['stand-grace', 'Orange warning before red (sit down)']]],
+                ['stand-required', 'Minimum standing / movement break duration']]],
             [new Adw.PreferencesGroup({title: 'Short hand breaks', description:
                 'Rest your hands without typing or clicking. Short breaks cannot be snoozed.'}), [
                 ['short-input-due', 'Remind after active input (minutes)'],
@@ -84,7 +84,7 @@ export default class WorkHabbitsPreferences extends ExtensionPreferences {
                 ['input-due', 'Remind after active input (minutes)'],
                 ['input-grace', 'Orange warning before red (minutes)']]],
             [new Adw.PreferencesGroup({title: 'Snooze — leaving soon'}), [
-                ['seated-snooze', 'Snooze standing reminders (minutes)'], ['stand-snooze', 'Snooze sitting reminders (minutes)'],
+                ['seated-snooze', 'Snooze standing reminders (minutes)'],
                 ['input-snooze', 'Snooze long hand reminders (minutes)'], ['snooze-away', 'Idle minutes to forgive snoozes'],
                 ['snooze-penalty', 'Continued work penalty multiplier']]],
             [new Adw.PreferencesGroup({title: 'Habit score', description:
