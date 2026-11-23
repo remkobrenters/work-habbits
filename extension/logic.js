@@ -1,11 +1,11 @@
 // Pure reminder logic. Durations are seconds; wall-clock values are milliseconds.
 export const SETTINGS = {
-    seatedDue: 7200, seatedLate: 7320, standRequired: 1200, standLate: 1320,
+    seatedDue: 7200, seatedLate: 7320, standRequired: 1200,
     inputDue: 3600, inputLate: 3660, inputResetIdle: 120,
     shortInputDue: 1200, shortInputLate: 1260, shortInputResetIdle: 20,
     inputActiveWindow: 10, postureActiveWindow: 60, postureResetIdle: 900, deskSitCm: 80, deskStandCm: 112,
     redWindow: 600, scoreDays: 14,
-    seatedSnooze: 900, standSnooze: 900, inputSnooze: 600, snoozeAway: 900, snoozePenalty: 2,
+    seatedSnooze: 900, inputSnooze: 600, snoozeAway: 900, snoozePenalty: 2,
 };
 
 export function preferencesOf(settings) {
@@ -18,7 +18,6 @@ export function configure(prefs) {
         seatedDue: prefs['seated-due'] * 60,
         seatedLate: (prefs['seated-due'] + prefs['seated-grace']) * 60,
         standRequired: prefs['stand-required'] * 60,
-        standLate: (prefs['stand-required'] + prefs['stand-grace']) * 60,
         inputDue: prefs['input-due'] * 60,
         inputLate: (prefs['input-due'] + prefs['input-grace']) * 60,
         shortInputDue: (prefs['short-input-due'] ?? 20) * 60,
@@ -26,7 +25,7 @@ export function configure(prefs) {
         shortInputResetIdle: prefs['short-input-break'] ?? 20,
         deskSitCm: prefs['desk-sit'], deskStandCm: prefs['desk-stand'],
         redWindow: (prefs['red-window'] ?? 10) * 60, scoreDays: prefs['score-days'],
-        seatedSnooze: (prefs['seated-snooze'] ?? 15) * 60, standSnooze: (prefs['stand-snooze'] ?? 15) * 60,
+        seatedSnooze: (prefs['seated-snooze'] ?? 15) * 60,
         inputSnooze: (prefs['input-snooze'] ?? 10) * 60, snoozeAway: (prefs['snooze-away'] ?? 15) * 60,
         snoozePenalty: prefs['snooze-penalty'] ?? 2,
     });
@@ -79,12 +78,12 @@ const penalties = (elapsed, window) => elapsed >= window ? 2 : elapsed >= window
 const nextPenalty = (elapsed, window) => (elapsed < window / 2 ? window / 2 : window) - elapsed;
 
 // Each reminder has its own scoring round; short hand breaks are never snoozable.
-const REMINDERS = ['seated', 'stand', 'input', 'shortInput'];
-const SNOOZABLE = ['seated', 'stand', 'input'];
+const REMINDERS = ['seated', 'input', 'shortInput'];
+const SNOOZABLE = ['seated', 'input'];
 
-const VALUE = {seated: 'seated', stand: 'standingRun', input: 'input', shortInput: 'shortInput'};
-const DUE = {seated: 'seatedDue', stand: 'standRequired', input: 'inputDue', shortInput: 'shortInputDue'};
-const LATE = {seated: 'seatedLate', stand: 'standLate', input: 'inputLate', shortInput: 'shortInputLate'};
+const VALUE = {seated: 'seated', input: 'input', shortInput: 'shortInput'};
+const DUE = {seated: 'seatedDue', input: 'inputDue', shortInput: 'shortInputDue'};
+const LATE = {seated: 'seatedLate', input: 'inputLate', shortInput: 'shortInputLate'};
 const BLINK = {orange: 'slow', red: 'fast'};
 const GRAY = Object.freeze({color: 'gray', blink: null, fraction: 0, seconds: null});
 
@@ -176,7 +175,7 @@ export class WellnessModel {
     _due(name, cfg) {
         const due = this[VALUE[name]] >= cfg[DUE[name]];
         if (name === 'seated') return due && !['standing', 'away'].includes(this.lastPosition);
-        return name === 'stand' ? due && this.standComplete : due;
+        return due;
     }
 
     // Due reminders not snoozed since their last break.
@@ -216,16 +215,11 @@ export class WellnessModel {
         return {snoozed: 'orange', over: 'red'}[this._snoozeState(name)] ?? this._roundColor(name, cfg);
     }
 
-    _postureReminder() {
-        return this.lastPosition === 'sitting' ? 'seated' : 'stand';
-    }
-
     resetPosture() {
         this.seated = this.standingRun = 0;
         this.standComplete = false;
-        this._misses.seated = this._misses.stand = 0;
+        this._misses.seated = 0;
         delete this.snoozes.seated;
-        delete this.snoozes.stand;
     }
 
     update({dt, localActive, deskReady, position, idleSeconds, wallMs, inputAvailable, awayAllowed = false}, cfg = SETTINGS) {
@@ -255,11 +249,8 @@ export class WellnessModel {
         if (position !== 'away' && (longIdle || returnedAfterBreak)) this.resetPosture();
         if (!deskReady || (position !== 'away' && longIdle)) return;
         if (position === 'sitting') {
-            if (this.standComplete && this._roundColor('stand', cfg) === 'orange') this.heeded++;
             this.standingRun = 0;
             this.standComplete = false;
-            this._misses.stand = 0;
-            delete this.snoozes.stand;
             if (localActive && idleSeconds < cfg.postureActiveWindow) {
                 this.seated += dt;
                 this.todaySitting += dt;
@@ -269,7 +260,7 @@ export class WellnessModel {
         }
         // An explicitly marked walk can continue while the screen is locked.
         if (!localActive && !(awayAllowed && position === 'away')) return;
-        if (!this.standComplete || idleSeconds < cfg.postureActiveWindow) this.standingRun += dt;
+        this.standingRun += dt;
         if (!this.standComplete && this.standingRun >= cfg.standRequired) {
             if (this._roundColor('seated', cfg) !== 'red') this.heeded++;
             this.standComplete = true;
@@ -277,15 +268,13 @@ export class WellnessModel {
             this._misses.seated = 0;
             delete this.snoozes.seated;
         }
-        if (localActive && idleSeconds < cfg.postureActiveWindow) {
-            this._advance('stand', dt, cfg);
-        }
         if (position === 'away') this.todayAway += dt;
         else if (idleSeconds < cfg.postureActiveWindow) this.todayStanding += dt;
     }
 
     deskColor(available, cfg = SETTINGS) {
-        return available ? this._color(this._postureReminder(), cfg) : 'gray';
+        if (!available || this.lastPosition === 'unknown') return 'gray';
+        return this.lastPosition === 'sitting' ? this._color('seated', cfg) : 'green';
     }
 
     inputColor(available, idleSeconds, cfg = SETTINGS, name = 'input') {
@@ -312,8 +301,11 @@ export class WellnessModel {
             const blink = active && this._snoozeState(name) !== 'snoozed' ? BLINK[color] ?? null : null;
             return {color, blink, fraction: color === 'green' ? Math.min(1, value / due) : 1, seconds};
         };
-        const posture = !desk || this.lastPosition === 'unknown' ? GRAY
-            : gauge(this._postureReminder(), this.deskColor(true, cfg), idleSeconds < cfg.postureActiveWindow);
+        const deskColor = this.deskColor(desk, cfg);
+        const posture = deskColor === 'gray' ? GRAY
+            : this.lastPosition === 'sitting' ? gauge('seated', deskColor, idleSeconds < cfg.postureActiveWindow)
+                : {color: deskColor, blink: null, fraction: this.standComplete ? 1 : this.standingRun / cfg.standRequired,
+                    seconds: this.standComplete ? null : cfg.standRequired - this.standingRun};
         if (!input) return {posture, hands: GRAY, shortHands: GRAY};
         const handGauge = name => handsIdle < cfg.inputActiveWindow
             ? gauge(name, this.inputColor(true, handsIdle, cfg, name), true)
@@ -325,9 +317,8 @@ export class WellnessModel {
     // Reminders whose round is red (a run-out snooze included), and whether the user is active for each.
     redReminders({active, input, idleSeconds, handsIdle}, cfg = SETTINGS) {
         const reminders = [];
-        const posture = this._postureReminder();
-        if (this.lastPosition !== 'unknown' && this._color(posture, cfg) === 'red')
-            reminders.push({name: posture, active: active && idleSeconds < cfg.postureActiveWindow});
+        if (this.lastPosition === 'sitting' && this._color('seated', cfg) === 'red')
+            reminders.push({name: 'seated', active: active && idleSeconds < cfg.postureActiveWindow});
         if (this._color('input', cfg) === 'red')
             reminders.push({name: 'input', active: active && input && handsIdle < cfg.inputActiveWindow});
         if (this._color('shortInput', cfg) === 'red')

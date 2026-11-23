@@ -208,6 +208,33 @@ test('dashboard keeps colored charts, posture percentages and score while coexis
     assert.equal(app._pause, undefined, 'Tracking is configured in Settings');
 });
 
+test('standing shows a countdown to the minimum and stays green after completion', () => {
+    const {app, played} = buildApp({seated: 6000, input: 0});
+    app._position = 'standing';
+    app._model.standingRun = 600;
+    const {posture} = app._panelItems;
+    const stand = dt => app._model.update({dt, wallMs: 1000, localActive: true,
+        deskReady: true, position: 'standing', idleSeconds: 0});
+    stand(0);
+    app._paint(true, 0, 'manual', true);
+    assert.equal(posture.time.text, '10:00');
+    assert.equal(app._postureCard.of.text, 'minimum 20m standing');
+    assert.equal(app._postureCard.hint.text, '10:00 to reach minimum');
+
+    for (let second = 0; second < 1800; second++) stand(1);
+    app._paint(true, 0, 'manual', true);
+    assert.equal(posture.time.text, 'Done');
+    assert.equal(posture.bar._level.color, '#40cb82');
+    assert.equal(posture.bar._level.fraction, 1);
+    assert.equal(posture.gauge.blink, null);
+    assert.equal(app._postureCard.big.text, '40m');
+    assert.equal(app._postureCard.of.text, 'standing');
+    assert.equal(app._postureCard.hint.text, 'Minimum met');
+    assert.equal(app._deskButton.label, 'I am sitting');
+    assert.equal(app._snoozeButton.visible, false);
+    assert.deepEqual(played, []);
+});
+
 for (const {name, input, shortInput, snoozed = false, seconds, color, blink} of [
     {name: 'short break comes first', input: 1800, shortInput: 900,
         seconds: '5:00', color: '#40cb82', blink: null},
